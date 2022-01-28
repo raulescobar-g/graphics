@@ -5,17 +5,17 @@
 #include <assert.h>
 
 struct Color {
-    float r;
-    float g;
-    float b;
+    int r;
+    int g;
+    int b;
     Color(): r(0), g(0), b(0) {}
-    Color(std::vector<float>& color){
+    Color(std::vector<int>& color){
         assert(color.size() == 3);
         r = color[0];
         g = color[1];
         b = color[3];
     }
-    Color(float r, float g, float b): r(r), g(g), b(b) {}
+    Color(int r, int g, int b): r(r), g(g), b(b) {}
 };
 
 #endif

@@ -6,25 +6,28 @@
 
 #include "Image.h"
 #include "Triangle.h"
+#include "utils.h"
 
 // This allows you to skip the `std::` in front of C++ standard library
 // functions. You can also say `using std::cout` to be more selective.
 // You should never do this in a header file.
 using namespace std;
 
-double RANDOM_COLORS[7][3] = {
-	{0.0000,    0.4470,    0.7410},
-	{0.8500,    0.3250,    0.0980},
-	{0.9290,    0.6940,    0.1250},
-	{0.4940,    0.1840,    0.5560},
-	{0.4660,    0.6740,    0.1880},
-	{0.3010,    0.7450,    0.9330},
-	{0.6350,    0.0780,    0.1840},
-};
+// double RANDOM_COLORS[7][3] = {
+// 	{0.0000,    0.4470,    0.7410},
+// 	{0.8500,    0.3250,    0.0980},
+// 	{0.9290,    0.6940,    0.1250},
+// 	{0.4940,    0.1840,    0.5560},
+// 	{0.4660,    0.6740,    0.1880},
+// 	{0.3010,    0.7450,    0.9330},
+// 	{0.6350,    0.0780,    0.1840},
+// };
 
 
 int main(int argc, char **argv)
 {
+	// GIVEN STARTER CODE
+	//##############################################################################
 	if(argc < 2) {
 		cout << "Usage: A1 meshfile" << endl;
 		return 0;
@@ -83,51 +86,29 @@ int main(int argc, char **argv)
 		}
 	}
 	cout << "Number of vertices: " << posBuf.size()/3 << endl;
+	//##############################################################################
+
 	auto image = make_shared<Image>(width, height);
 
-	BoundingBox net_size;
-	for (int i = 0; i < posBuf.size(); i += 3){
-		net_size.lower.x = min( posBuf[i] , net_size.lower.x);
-		net_size.lower.y = min( posBuf[i+1], net_size.lower.y);
+	vector<float> box = inplace_linear_bounding_box_search(posBuf);
 
-		net_size.upper.x = max( posBuf[i] , net_size.upper.x);
-		net_size.upper.y = max( posBuf[i+1], net_size.upper.y);
-	}
-
-	float dx = net_size.upper.x - net_size.lower.x;
-	float dy = net_size.upper.y - net_size.lower.y;
-	float s = min((float)width/(float) dx, (float)height/(float) dy);
-	float tx = (width/2.0) - (s * ((net_size.upper.x + net_size.lower.x) / 2.0));
-	float ty = (height/2.0) - (s * ((net_size.upper.y + net_size.lower.y) / 2.0));
-
+	float s = scale(height, width, box);
+	float tx = translation(width, s, box[0]  ,box[2]);
+	float ty = translation(height, s, box[1]  ,box[3]);
 
 	vector<Triangle> triangles;
-	for (int i = 0; i < posBuf.size(); i += 9){
 
-		vector<float> v1 = {posBuf[i], posBuf[i+1], posBuf[i+2]};
-		vector<float> v2 = { posBuf[i+3],  posBuf[i+4],  posBuf[i+5]};
-		vector<float> v3 = { posBuf[i+6],  posBuf[i+7],  posBuf[i+8]};
+	extract_triangles(triangles, posBuf, s, tx, ty);
 
-		triangles.push_back( Triangle(v1,v2,v3) );
+	switch (task) {
+		case 1: 
+			task1(triangles, s, tx, ty, image);
+			break;
+		case 2:
+			task2(triangles, s, tx, ty, image);
+			break;
 	}
 
-
-	int r = 0;
-	for (Triangle& tri : triangles){
-
-		tri.bb.lower.y = (s * tri.bb.lower.y) + ty;
-		tri.bb.lower.x = (s * tri.bb.lower.x) + tx;
-		tri.bb.upper.x = (s * tri.bb.upper.x) + tx;
-		tri.bb.upper.y = (s * tri.bb.upper.y) + ty;
-
-		for(int y= tri.bb.lower.y; y < tri.bb.upper.y; ++y){
-			for(int x = tri.bb.lower.x; x < tri.bb.upper.x; ++x){
-				image->setPixel(x,y,RANDOM_COLORS[r][0]*255 , RANDOM_COLORS[r][1]*255 , RANDOM_COLORS[r][2]*255);
-			}
-		}
-		r = (r + 1) % 7;
-	}
-	
 	image->writeToFile(filename);
 	return 0;
 }
