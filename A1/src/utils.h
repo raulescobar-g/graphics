@@ -92,7 +92,32 @@ void task2(std::vector<Triangle>& triangles, float s, float tx, float ty, std::s
 		}
 		r = (r + 1) % 7;
 	}
+}
 
+void task3(std::vector<Triangle>& triangles, float s, float tx, float ty, std::shared_ptr<Image> image){
+    int k = 0;
+    int r,g,b;
+	for (Triangle& tri : triangles){
+
+		for(int y= tri.bb.lower.y; y < tri.bb.upper.y; ++y){
+			for(int x = tri.bb.lower.x; x < tri.bb.upper.x; ++x){
+                std::vector<double> bary = bary_coords(x,y, tri);
+                if (bary[0] >= 0.0 && bary[1] >= 0.0 && bary[2] >= 0.0){
+                    r = 0;
+                    g = 0;
+                    b = 0;
+                    for (int a = 0; a < 3; ++a){
+                        r += bary[a] * RANDOM_COLORS[(k+a) % 7][0] * 255;
+                        g += bary[a] * RANDOM_COLORS[(k+a) % 7][1] * 255;
+                        b += bary[a] * RANDOM_COLORS[(k+a) % 7][2] * 255;
+                    }
+				    image->setPixel(x,y,r,g,b);
+                }
+			}
+		}
+        k+=1;
+		
+	}
 }
 
 

@@ -107,6 +107,9 @@ int main(int argc, char **argv)
 		case 2:
 			task2(triangles, s, tx, ty, image);
 			break;
+		case 3: 
+			task3(triangles, s, tx, ty, image);
+			break;
 	}
 
 	image->writeToFile(filename);
