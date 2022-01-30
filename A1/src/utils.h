@@ -120,5 +120,41 @@ void task3(std::vector<Triangle>& triangles, float s, float tx, float ty, std::s
 	}
 }
 
+void task4(std::vector<Triangle>& triangles, float s, float tx, float ty, std::shared_ptr<Image> image, std::vector<float>& bb){
+    int dy = (bb[3] - bb[1]) * s;
+
+	for (Triangle& tri : triangles){
+
+		for(int y= tri.bb.lower.y; y < tri.bb.upper.y; ++y){
+			for(int x = tri.bb.lower.x; x < tri.bb.upper.x; ++x){
+
+                std::vector<double> bary = bary_coords(x,y, tri);
+                if (bary[0] >= 0.0 && bary[1] >= 0.0 && bary[2] >= 0.0){
+                    
+				    image->setPixel(x,y,255*(y/(float)dy) ,0 ,255*(1- (y/(float)dy)));
+                }
+			}
+		}		
+	}
+}
+
+void task5(std::vector<Triangle>& triangles, float s, float tx, float ty, std::shared_ptr<Image> image, std::vector<float>& bb){
+    int dy = (bb[3] - bb[1]) * s;
+
+	for (Triangle& tri : triangles){
+
+		for(int y= tri.bb.lower.y; y < tri.bb.upper.y; ++y){
+			for(int x = tri.bb.lower.x; x < tri.bb.upper.x; ++x){
+
+                std::vector<double> bary = bary_coords(x,y, tri);
+                if (bary[0] >= 0.0 && bary[1] >= 0.0 && bary[2] >= 0.0){
+                    
+				    image->setPixel(x,y,255*(y/(float)dy) ,0 ,255*(1- (y/(float)dy)));
+                }
+			}
+		}		
+	}
+}
+
 
 #endif
