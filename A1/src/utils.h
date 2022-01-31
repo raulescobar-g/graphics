@@ -4,6 +4,7 @@
 #include "BoundingBox.h"
 #include "Triangle.h"
 #include "Image.h"
+#include "Zbuffer.h"
 #include <vector>
 
 double RANDOM_COLORS[7][3] = {
@@ -17,18 +18,16 @@ double RANDOM_COLORS[7][3] = {
 };
 
 std::vector<float> inplace_linear_bounding_box_search(const std::vector<float>& posBuf){
-    std::vector<float> box;
-    box.push_back(INFINITY);
-    box.push_back(INFINITY);
-    box.push_back(-1 * INFINITY);
-    box.push_back(-1 * INFINITY);
+    std::vector<float> box = {std::numeric_limits<float>::infinity(),std::numeric_limits<float>::infinity(),std::numeric_limits<float>::infinity(),-std::numeric_limits<float>::infinity(),-std::numeric_limits<float>::infinity(),-std::numeric_limits<float>::infinity()};
 
     for (int i = 0; i < posBuf.size(); i += 3){
         box[0] = std::min( posBuf[i] , box[0]);
         box[1] = std::min( posBuf[i+1], box[1]);
+        box[2] = std::min( posBuf[i+2], box[2]);
 
-        box[2] = std::max( posBuf[i] , box[2]);
-        box[3] = std::max( posBuf[i+1], box[3]);
+        box[3] = std::max( posBuf[i] , box[3]);
+        box[4] = std::max( posBuf[i+1], box[4]);
+        box[5] = std::max( posBuf[i+2], box[5]);
     }
     return box;
 }
@@ -38,15 +37,15 @@ float translation(int n, float s, float t0, float t1){
 }
 
 float scale(int height, int width, std::vector<float>& box){
-	return std::min((float) width / (float) (box[2] - box[0]), (float) height / (float) (box[3] - box[1]));
+	return std::min((float) width / (float) (box[3] - box[0]), (float) height / (float) (box[4] - box[1]));
 }
 
 void extract_triangles(std::vector<Triangle>& triangles, std::vector<float>& posBuf, float s, float tx, float ty){
     for (int i = 0; i < posBuf.size(); i += 9){
 
-		std::vector<int> v1 = {(int)( (s * posBuf[i]) + tx), (int) ((s * posBuf[i+1]) + ty),(int) posBuf[i+2]};
-		std::vector<int> v2 = {(int)( (s * posBuf[i+3]) + tx),(int) ((s * posBuf[i+4]) + ty), (int) posBuf[i+5]};
-		std::vector<int> v3 = {(int)( (s * posBuf[i+6]) + tx),(int) ((s * posBuf[i+7]) + ty), (int) posBuf[i+8]};
+		std::vector<int> v1 = {(int)( (s * posBuf[i]) + tx), (int) ((s * posBuf[i+1]) + ty),(int) (s * posBuf[i+2]) };
+		std::vector<int> v2 = {(int)( (s * posBuf[i+3]) + tx),(int) ((s * posBuf[i+4]) + ty), (int) (s * posBuf[i+5]) };
+		std::vector<int> v3 = {(int)( (s * posBuf[i+6]) + tx),(int) ((s * posBuf[i+7]) + ty), (int) (s * posBuf[i+8]) };
 
 		triangles.push_back( Triangle(v1,v2,v3) );
 	}
@@ -121,7 +120,7 @@ void task3(std::vector<Triangle>& triangles, float s, float tx, float ty, std::s
 }
 
 void task4(std::vector<Triangle>& triangles, float s, float tx, float ty, std::shared_ptr<Image> image, std::vector<float>& bb){
-    int dy = (bb[3] - bb[1]) * s;
+    float dy = (bb[4] - bb[1]) * s;
 
 	for (Triangle& tri : triangles){
 
@@ -138,18 +137,43 @@ void task4(std::vector<Triangle>& triangles, float s, float tx, float ty, std::s
 	}
 }
 
-void task5(std::vector<Triangle>& triangles, float s, float tx, float ty, std::shared_ptr<Image> image, std::vector<float>& bb){
-    int dy = (bb[3] - bb[1]) * s;
+std::vector<int> crossp(Vertex& v1, Vertex& v2, Vertex& v3) {
+    int x1 = v2.position.x - v1.position.x;
+    int y1 = v2.position.y - v1.position.y;
+    int z1 = v2.position.z - v1.position.z;
 
+    int x2 = v3.position.x - v1.position.x;
+    int y2 = v3.position.y - v1.position.y;
+    int z2 = v3.position.z - v1.position.z;
+
+    std::vector<int> res = {0, 0, 0};
+    res[0] = (y1*z2 - z1*y2);
+    res[1] = -1 * (x1*z2 - x2*z1);
+    res[2] = (x1*y2 - y1*x2);
+    return res;
+}
+
+
+void task5(std::vector<Triangle>& triangles, float s, float tx, float ty, std::shared_ptr<Image> image, std::vector<float>& bb, Zbuff& z_buff){
+    float dz = (bb[5] - bb[2]) * s;
 	for (Triangle& tri : triangles){
-
 		for(int y= tri.bb.lower.y; y < tri.bb.upper.y; ++y){
 			for(int x = tri.bb.lower.x; x < tri.bb.upper.x; ++x){
 
                 std::vector<double> bary = bary_coords(x,y, tri);
+
                 if (bary[0] >= 0.0 && bary[1] >= 0.0 && bary[2] >= 0.0){
+
+                    std::vector<int> cross = crossp(tri.v1, tri.v2, tri.v3);
                     
-				    image->setPixel(x,y,255*(y/(float)dy) ,0 ,255*(1- (y/(float)dy)));
+                    float z = (float) tri.v1.position.z - (float) ( ((cross[0] * (x - tri.v1.position.x)) + (cross[1] * (y - tri.v1.position.y))) / (float) cross[2] );
+
+                    if (z > z_buff.get_ds(x,y)) {
+                        z_buff.set_ds(x,y,z);
+                        //std::cout<<z<< "- "<<(float)bb[2]<<" out of "<<dz<<std::endl;
+				        image->setPixel(x,y,255 * ((z - (float)bb[2] * s) / dz) ,0 ,0);
+
+                    }
                 }
 			}
 		}		

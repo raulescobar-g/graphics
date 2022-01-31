@@ -7,6 +7,7 @@
 #include "Image.h"
 #include "Triangle.h"
 #include "utils.h"
+#include "Zbuffer.h"
 
 // This allows you to skip the `std::` in front of C++ standard library
 // functions. You can also say `using std::cout` to be more selective.
@@ -93,12 +94,14 @@ int main(int argc, char **argv)
 	vector<float> box = inplace_linear_bounding_box_search(posBuf);
 
 	float s = scale(height, width, box);
-	float tx = translation(width, s, box[0]  ,box[2]);
-	float ty = translation(height, s, box[1]  ,box[3]);
+	float tx = translation(width, s, box[0]  ,box[3]);
+	float ty = translation(height, s, box[1]  ,box[4]);
 
 	vector<Triangle> triangles;
 
 	extract_triangles(triangles, posBuf, s, tx, ty);
+
+	Zbuff z_buff(width, height);
 
 	switch (task) {
 		case 1: 
@@ -114,7 +117,7 @@ int main(int argc, char **argv)
 			task4(triangles, s, tx, ty, image, box);
 			break;
 		case 5: 
-			//task5(triangles, s, tx, ty, image, );
+			task5(triangles, s, tx, ty, image, box, z_buff);
 			break;
 		case 6: 
 			//task6(triangles, s, tx, ty, image, );
@@ -123,6 +126,11 @@ int main(int argc, char **argv)
 			//task7(triangles, s, tx, ty, image, );
 			break;
 	}
+
+	// for (float val : box){
+	// 	cout<<val<<endl;
+	// }
+	// cout<<s<<endl;
 
 	image->writeToFile(filename);
 	return 0;

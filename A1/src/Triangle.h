@@ -1,7 +1,6 @@
 #ifndef _TRIANGLE_H_
 #define _TRIANGLE_H_
 
-#include <string>
 #include <vector>
 #include "Vertex.h"
 #include "BoundingBox.h"
