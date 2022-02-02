@@ -86,7 +86,6 @@ int main(int argc, char **argv)
 			}
 		}
 	}
-	cout << "Number of vertices: " << posBuf.size()/3 << endl;
 	//##############################################################################
 
 	auto image = make_shared<Image>(width, height);
@@ -99,7 +98,7 @@ int main(int argc, char **argv)
 
 	vector<Triangle> triangles;
 
-	extract_triangles(triangles, posBuf, s, tx, ty);
+	extract_triangles(triangles, posBuf,norBuf, s, tx, ty);
 
 	Zbuff z_buff(width, height);
 
@@ -120,7 +119,7 @@ int main(int argc, char **argv)
 			task5(triangles, s, tx, ty, image, box, z_buff);
 			break;
 		case 6: 
-			//task6(triangles, s, tx, ty, image, );
+			task6(triangles, s, tx, ty, image, z_buff);
 			break;
 		case 7: 
 			//task7(triangles, s, tx, ty, image, );

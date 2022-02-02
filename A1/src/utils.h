@@ -40,14 +40,22 @@ float scale(int height, int width, std::vector<float>& box){
 	return std::min((float) width / (float) (box[3] - box[0]), (float) height / (float) (box[4] - box[1]));
 }
 
-void extract_triangles(std::vector<Triangle>& triangles, std::vector<float>& posBuf, float s, float tx, float ty){
+void extract_triangles(std::vector<Triangle>& triangles, std::vector<float>& posBuf, std::vector<float>& normBuf,  float s, float tx, float ty){
     for (int i = 0; i < posBuf.size(); i += 9){
 
 		std::vector<int> v1 = {(int)( (s * posBuf[i]) + tx), (int) ((s * posBuf[i+1]) + ty),(int) (s * posBuf[i+2]) };
 		std::vector<int> v2 = {(int)( (s * posBuf[i+3]) + tx),(int) ((s * posBuf[i+4]) + ty), (int) (s * posBuf[i+5]) };
 		std::vector<int> v3 = {(int)( (s * posBuf[i+6]) + tx),(int) ((s * posBuf[i+7]) + ty), (int) (s * posBuf[i+8]) };
+        Triangle tri(v1,v2,v3);
 
-		triangles.push_back( Triangle(v1,v2,v3) );
+        std::vector<float> n1 = { normBuf[i]   , normBuf[i+1] , posBuf[i+2] };
+		std::vector<float> n2 = { normBuf[i+3] , normBuf[i+4] , posBuf[i+5] };
+		std::vector<float> n3 = { normBuf[i+6] , normBuf[i+7] , posBuf[i+8] };
+
+        tri.v1.normal = n1;
+        tri.v2.normal = n2;
+        tri.v3.normal = n3;
+		triangles.push_back(tri);
 	}
 }
 
@@ -153,7 +161,6 @@ std::vector<int> crossp(Vertex& v1, Vertex& v2, Vertex& v3) {
     return res;
 }
 
-
 void task5(std::vector<Triangle>& triangles, float s, float tx, float ty, std::shared_ptr<Image> image, std::vector<float>& bb, Zbuff& z_buff){
     float dz = (bb[5] - bb[2]) * s;
 	for (Triangle& tri : triangles){
@@ -170,7 +177,6 @@ void task5(std::vector<Triangle>& triangles, float s, float tx, float ty, std::s
 
                     if (z > z_buff.get_ds(x,y)) {
                         z_buff.set_ds(x,y,z);
-                        //std::cout<<z<< "- "<<(float)bb[2]<<" out of "<<dz<<std::endl;
 				        image->setPixel(x,y,255 * ((z - (float)bb[2] * s) / dz) ,0 ,0);
 
                     }
@@ -180,5 +186,33 @@ void task5(std::vector<Triangle>& triangles, float s, float tx, float ty, std::s
 	}
 }
 
+void task6(std::vector<Triangle>& triangles, float s, float tx, float ty, std::shared_ptr<Image> image, Zbuff& z_buff){
+    float r, g, b, xn, yn, zn;
+	for (Triangle& tri : triangles){
+		for(int y= tri.bb.lower.y; y < tri.bb.upper.y; ++y){
+			for(int x = tri.bb.lower.x; x < tri.bb.upper.x; ++x){
+                std::vector<double> bary = bary_coords(x,y, tri);
+                if (bary[0] >= 0.0 && bary[1] >= 0.0 && bary[2] >= 0.0){
+
+                    std::vector<int> cross = crossp(tri.v1, tri.v2, tri.v3);
+                    float z = (float) tri.v1.position.z - (float) ( ((cross[0] * (x - tri.v1.position.x)) + (cross[1] * (y - tri.v1.position.y))) / (float) cross[2] );
+
+                    if (z > z_buff.get_ds(x,y)) {
+                        z_buff.set_ds(x,y,z);
+                        
+                        xn = tri.v1.normal[0] * bary[1] + tri.v2.normal[0]* bary[2] + tri.v3.normal[0] * bary[0];
+                        yn = tri.v1.normal[1] * bary[1] + tri.v2.normal[1]* bary[2] + tri.v3.normal[1] * bary[0];
+                        zn = tri.v1.normal[2] * bary[1] + tri.v2.normal[2]* bary[2] + tri.v3.normal[2] * bary[0];
+                         
+                        r = (0.5 * xn + 0.5);
+                        g = (0.5 * yn + 0.5);
+                        b = (0.5 * zn + 0.5);          
+                        image->setPixel(x,y, 255*r, 255*g, 255*b);
+                    }
+                }
+			}
+		}		
+	}
+}
 
 #endif
