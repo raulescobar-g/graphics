@@ -129,7 +129,6 @@ void task3(std::vector<Triangle>& triangles, float s, float tx, float ty, std::s
 
 void task4(std::vector<Triangle>& triangles, float s, float tx, float ty, std::shared_ptr<Image> image, std::vector<float>& bb){
     float dy = (bb[4] - bb[1]) * s;
-    std::cout<<"lower bound: "<<bb[1]<<" dy: "<<dy<<std::endl;
 	for (Triangle& tri : triangles){
 
 		for(int y= tri.bb.lower.y; y < tri.bb.upper.y; ++y){
@@ -207,10 +206,6 @@ void task6(std::vector<Triangle>& triangles, float s, float tx, float ty, std::s
                         xn = (0.5 * xn + 0.5) * 255;
                         yn = (0.5 * yn + 0.5) * 255;
                         zn = (0.5 * zn + 0.5) * 255;
-
-                        if (xn >= 255 || yn >= 255 || zn >= 255){
-                            std::cout<<"went over"<<std::endl;
-                        }
                         
                         image->setPixel(x,y, xn, yn, zn);
                     }
