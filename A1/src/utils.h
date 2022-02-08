@@ -129,7 +129,7 @@ void task3(std::vector<Triangle>& triangles, float s, float tx, float ty, std::s
 
 void task4(std::vector<Triangle>& triangles, float s, float tx, float ty, std::shared_ptr<Image> image, std::vector<float>& bb){
     float dy = (bb[4] - bb[1]) * s;
-
+    std::cout<<"lower bound: "<<bb[1]<<" dy: "<<dy<<std::endl;
 	for (Triangle& tri : triangles){
 
 		for(int y= tri.bb.lower.y; y < tri.bb.upper.y; ++y){
@@ -138,7 +138,7 @@ void task4(std::vector<Triangle>& triangles, float s, float tx, float ty, std::s
                 std::vector<double> bary = bary_coords(x,y, tri);
                 if (bary[0] >= 0.0 && bary[1] >= 0.0 && bary[2] >= 0.0){
                     
-				    image->setPixel(x,y,255*(y/(float)dy) ,0 ,255*(1- (y/(float)dy)));
+				    image->setPixel(x,y,255*((y - (bb[1]*s + ty)) / (float)dy) ,0 ,255*(1- ((y - (bb[1]*s + ty))/(float)dy)));
                 }
 			}
 		}		
@@ -187,7 +187,41 @@ void task5(std::vector<Triangle>& triangles, float s, float tx, float ty, std::s
 }
 
 void task6(std::vector<Triangle>& triangles, float s, float tx, float ty, std::shared_ptr<Image> image, Zbuff& z_buff){
-    float r, g, b, xn, yn, zn;
+    float xn, yn, zn;
+	for (Triangle& tri : triangles){
+		for(int y= tri.bb.lower.y; y < tri.bb.upper.y; ++y){
+			for(int x = tri.bb.lower.x; x < tri.bb.upper.x; ++x){
+                std::vector<double> bary = bary_coords(x,y, tri);
+                if (bary[0] >= 0.0 && bary[1] >= 0.0 && bary[2] >= 0.0){
+
+                    std::vector<int> cross = crossp(tri.v1, tri.v2, tri.v3);
+                    float z = (float) tri.v1.position.z - (float) ( ((cross[0] * (x - tri.v1.position.x)) + (cross[1] * (y - tri.v1.position.y))) / (float) cross[2] );
+
+                    if (z > z_buff.get_ds(x,y)) {
+                        z_buff.set_ds(x,y,z);
+
+                        xn = (tri.v1.normal[0] * bary[1] + tri.v2.normal[0] * bary[2] + tri.v3.normal[0]* bary[0]);
+                        yn = (tri.v1.normal[1] * bary[1] + tri.v2.normal[1] * bary[2] + tri.v3.normal[1]* bary[0]);
+                        zn = (tri.v1.normal[2] * bary[1] + tri.v2.normal[2] * bary[2] + tri.v3.normal[2]* bary[0]);
+
+                        xn = (0.5 * xn + 0.5) * 255;
+                        yn = (0.5 * yn + 0.5) * 255;
+                        zn = (0.5 * zn + 0.5) * 255;
+
+                        if (xn >= 255 || yn >= 255 || zn >= 255){
+                            std::cout<<"went over"<<std::endl;
+                        }
+                        
+                        image->setPixel(x,y, xn, yn, zn);
+                    }
+                }
+			}
+		}		
+	}
+}
+
+void task7(std::vector<Triangle>& triangles, float s, float tx, float ty, std::shared_ptr<Image> image, Zbuff& z_buff){
+    float xn, yn, zn;
 	for (Triangle& tri : triangles){
 		for(int y= tri.bb.lower.y; y < tri.bb.upper.y; ++y){
 			for(int x = tri.bb.lower.x; x < tri.bb.upper.x; ++x){
@@ -202,12 +236,10 @@ void task6(std::vector<Triangle>& triangles, float s, float tx, float ty, std::s
                         
                         xn = tri.v1.normal[0] * bary[1] + tri.v2.normal[0]* bary[2] + tri.v3.normal[0] * bary[0];
                         yn = tri.v1.normal[1] * bary[1] + tri.v2.normal[1]* bary[2] + tri.v3.normal[1] * bary[0];
-                        zn = tri.v1.normal[2] * bary[1] + tri.v2.normal[2]* bary[2] + tri.v3.normal[2] * bary[0];
-                         
-                        r = (0.5 * xn + 0.5);
-                        g = (0.5 * yn + 0.5);
-                        b = (0.5 * zn + 0.5);          
-                        image->setPixel(x,y, 255*r, 255*g, 255*b);
+                        zn = tri.v1.normal[2] * bary[1] + tri.v2.normal[2]* bary[2] + tri.v3.normal[2] * bary[0];  
+
+                        int c = std::max(0, (int)((xn + yn + zn) * (255.0 / std::sqrt(3))) );       
+                        image->setPixel(x,y, c, c,  c);
                     }
                 }
 			}

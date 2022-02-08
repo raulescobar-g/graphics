@@ -122,14 +122,9 @@ int main(int argc, char **argv)
 			task6(triangles, s, tx, ty, image, z_buff);
 			break;
 		case 7: 
-			//task7(triangles, s, tx, ty, image, );
+			task7(triangles, s, tx, ty, image, z_buff);
 			break;
 	}
-
-	// for (float val : box){
-	// 	cout<<val<<endl;
-	// }
-	// cout<<s<<endl;
 
 	image->writeToFile(filename);
 	return 0;
