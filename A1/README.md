@@ -1,15 +1,26 @@
-Raul Escobar
-328003859
-raulescobar_g@tamu.edu
-7 tasks completed.
+# Rasterizer from scratch
 
+### A rasterizer in C++ from scratch with help from tiny object loader and stb_image_write to read .obj files and write to .png file type
 
-notes:
+How to run:
+```
+mkdir build
+cd build
+cmake ..
+make -j4
+./A1 <path to .obj file> <filename for output> <height> <width> <task#>
+```
 
-The main.cpp contains a switch statement that calls a helper task function from utils.h depending on what task number was passed in.
+- Task number description:
+    - 1 : only draws the bounding boxes of triangles in random colors without any Z-buffering
+    - 2 : draws triangles in random colors without Z-buffering
+    - 3 : draws triangles with baryocentric interpolation with random colors and without Z-buffering
+    - 4 : draws traingles interpolated with z-depth, (Z-buffering implemented)
+    - 5 :
+    - 6 : draws object file with 
+    - 7 : draws object file with lighting from [1 , 1] direction
 
  - Classes:
-    
     - Image (given in starter code)
 
     - Triangle
@@ -21,4 +32,3 @@ The main.cpp contains a switch statement that calls a helper task function from 
 
     - Zbuffer
 
-On task 6 and 7, I am not sure if tri.obj came out correctly, but the bunny, teapot, and sphere are fine for both. I only ask the grader respectfully to be granted partial credit for implementing it to some degree.
