@@ -2,6 +2,6 @@
 
 int main(int argc, char **argv)
 {
-	std::cout << "Welcome to Computer Graphics!" << std::endl;
+	std::cout << "Welcome!" << std::endl;
 	return 0;
 }
