@@ -8,7 +8,7 @@ class Tree {
     private:
         Node * root;
         int loc;
-        std::vector<Node*> node_order;
+        std::vector<Node*> node_order; // do breadth first traversal of tree to populate the array
 
         void make_empty(Node * & t){
             if (t != nullptr){
@@ -22,15 +22,29 @@ class Tree {
 
         void draw_self(std::shared_ptr<MatrixStack> MV, std::shared_ptr<Program> prog, Node * t, double s, Node * cur){ //entire procedure for self_drawing taken from assignment document given to us TASK 2
             MV->translate(t->joint_t);
+            if (t != root){
+                MV->pushMatrix();
+                    MV->scale(0.5, 0.5 ,0.5);
+                    glUniformMatrix4fv(prog->getUniform("MV"), 1, GL_FALSE, &MV->topMatrix()[0][0]); 
+                    t->joint->draw(prog);
+                MV->popMatrix();
+            }
+            
             MV->rotate(t->joint_a[2], glm::vec3(0.0,0.0,1.0));
             MV->rotate(t->joint_a[1], glm::vec3(0.0,1.0,0.0));
             MV->rotate(t->joint_a[0], glm::vec3(1.0,0.0,0.0)); 
+        
             MV->pushMatrix();
+                if (t->spinning){
+                    t->rad_count += 0.1;
+                    MV->rotate(t->rad_count, glm::vec3(1.0,0.0,0.0));
+                }
                 MV->translate(t->mesh_t);
                 t == cur ? MV->scale(t->scale[0] * s,t->scale[1] * s,t->scale[2] * s ) : MV->scale(t->scale);
                 glUniformMatrix4fv(prog->getUniform("MV"), 1, GL_FALSE, &MV->topMatrix()[0][0]); 
                 t->shape->draw(prog);
             MV->popMatrix();
+            
         };
 
         void draw_helper(std::shared_ptr<MatrixStack> MV, std::shared_ptr<Program> prog, Node * iter, double s, Node * cur) { 
@@ -57,8 +71,8 @@ class Tree {
            return this->root;
        }
 
-       Tree(glm::vec3& jt, glm::vec3& ja, glm::vec3& mt, glm::vec3& s, std::shared_ptr<Shape> _shape): loc(0) {
-           this->root = new Node(jt, ja, mt, s, _shape);
+       Tree(glm::vec3& jt, glm::vec3& ja, glm::vec3& mt, glm::vec3& s, std::shared_ptr<Shape> _shape,std::shared_ptr<Shape> _joint ): loc(0) {
+           this->root = new Node(jt, ja, mt, s, _shape, _joint);
        }
 
         ~Tree() {

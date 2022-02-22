@@ -25,11 +25,11 @@ string RES_DIR = ""; // Where data files live
 shared_ptr<Program> prog;
 shared_ptr<Program> progIM; // immediate mode
 
-shared_ptr<Shape> cube;
-shared_ptr<Shape> sphere;
+shared_ptr<Shape> cube; //CHANGED FROM SHAPE TO CUBE
+shared_ptr<Shape> sphere; // ADDED SHAPE OBJECT FOR TASK 5
 
-Tree * robot;
-Node * current;
+Tree * robot; //THE TREE WHERE THE TORSO IS THE ROOT
+Node * current; //THIS IS THE CURRENTLY SELECTED COMPONENT OF THE TREE
 
 
 static void error_callback(int error, const char *description)
@@ -58,12 +58,13 @@ static void character_callback(GLFWwindow* window, unsigned int codepoint) {
 		case 'z':
 			current->rotate(0.0,0.0,0.1);
 			break;
-		case '.':
-		current = robot->next();
+			
+		case '.':					// solution to this was a little hacky. In the init function, after I populate the tree, I traverse the tree depth first, populating the array at the same time so that i can have them in the right order
+		current = robot->next(); // method in Tree class which moves the current pointer to the next element in a breadth first traversal array
 			break;
 		case ',':
-		current = robot->prev();
-			break;		
+		current = robot->prev(); // method in Tree class which moves the current pointer to the previous element in a breadth first traversal array
+			break;					// I KEEP THE ARRAY IN THE TREE CLASS >>> robot
 	}
 }
 
@@ -112,13 +113,8 @@ static void init()
 	prog->addAttribute("aNor");
 	prog->setVerbose(false);
 
-	int width, height;
-	glfwGetFramebufferSize(window, &width, &height);
-	float aspect = width/(float)height;
-	glViewport(0, 0, width, height);
-
 	// _CONSTANTS FOR EASIER EDITING______________________________________________________
-	float distance_camera_to_body = 15.0;												
+	float distance_camera_to_body = 10.0;												
 																						
 	float torso_length = 2.5;
 	float torso_width = 1.0; 												
@@ -145,7 +141,7 @@ static void init()
 	glm::vec3 torso_mesh_t(0.0,0.0, 0.0);
 	glm::vec3 torso_scale(torso_width, torso_length , torso_width);
 
-	robot = new Tree(torso_joint_t, torso_joint_a, torso_mesh_t, torso_scale, cube); //THIS IS THE TORSO, THUS ALSO THE ROOT WHICH WAS DECLARED GLOBALLY AT THE TOP OF THE FILE
+	robot = new Tree(torso_joint_t, torso_joint_a, torso_mesh_t, torso_scale, cube, sphere); //THIS IS THE TORSO, THUS ALSO THE ROOT WHICH WAS DECLARED GLOBALLY AT THE TOP OF THE FILE
 	current = robot->get_root(); //this is for traversing the tree also declared at the top of the file
 		// indentation for readability
 
@@ -154,7 +150,7 @@ static void init()
 		glm::vec3 head_joint_a(0.0,0.0,0.0);
 		glm::vec3 head_joint_t(0.0, torso_length/2.0 ,0.0);
 		glm::vec3 head_scale(head_length,head_length,head_length);
-		Node * head = new Node(head_joint_t, head_joint_a, head_mesh_t, head_scale, cube);
+		Node * head = new Node(head_joint_t, head_joint_a, head_mesh_t, head_scale, cube, sphere);
 		robot->push_child(head, robot->get_root());//Add the head as child of torso
 
 		//LEFT ARM INITIAL VALUES
@@ -162,14 +158,14 @@ static void init()
 		glm::vec3 left_arm_joint_a(0.0,0.0,0.0);
 		glm::vec3 left_arm_joint_t(-torso_width/2.0, torso_length/2.0 - arm_width/2.0, 0.0);
 		glm::vec3 left_arm_scale(arm_length, arm_width, arm_width);
-		Node * left_arm = new Node(left_arm_joint_t, left_arm_joint_a, left_arm_mesh_t, left_arm_scale, cube);
+		Node * left_arm = new Node(left_arm_joint_t, left_arm_joint_a, left_arm_mesh_t, left_arm_scale, cube, sphere);
 
 			//LEFT FOREARM INITIAL VALUES
 			glm::vec3 left_forearm_mesh_t(-forearm_length/2.0, 0.0, 0.0);
 			glm::vec3 left_forearm_joint_a(0.0,0.0,0.0);
 			glm::vec3 left_forearm_joint_t(-arm_length,0.0,0.0);
 			glm::vec3 left_forearm_scale(forearm_length, forearm_width, forearm_width);
-			Node * left_forearm = new Node(left_forearm_joint_t, left_forearm_joint_a, left_forearm_mesh_t, left_forearm_scale, cube);
+			Node * left_forearm = new Node(left_forearm_joint_t, left_forearm_joint_a, left_forearm_mesh_t, left_forearm_scale, cube, sphere);
 			
 		robot->push_child(left_arm, robot->get_root());//Add the arm as child of torso
 		robot->push_child(left_forearm, left_arm);//Add the forearm as child of arm
@@ -179,14 +175,14 @@ static void init()
 		glm::vec3 right_arm_joint_a(0.0,0.0,0.0);
 		glm::vec3 right_arm_joint_t(torso_width/2.0, torso_length/2.0 - arm_width/2.0, 0.0);
 		glm::vec3 right_arm_scale(arm_length, arm_width, arm_width);
-		Node * right_arm = new Node(right_arm_joint_t, right_arm_joint_a, right_arm_mesh_t, right_arm_scale, cube);
+		Node * right_arm = new Node(right_arm_joint_t, right_arm_joint_a, right_arm_mesh_t, right_arm_scale, cube, sphere);
 
 			//RIGHT FOREARM INITIAL VALUES
 			glm::vec3 right_forearm_mesh_t(forearm_length/2.0, 0.0, 0.0);
 			glm::vec3 right_forearm_joint_a(0.0,0.0,0.0);
 			glm::vec3 right_forearm_joint_t(arm_length,0.0,0.0);
 			glm::vec3 right_forearm_scale(forearm_length, forearm_width, forearm_width);
-			Node * right_forearm = new Node(right_forearm_joint_t, right_forearm_joint_a, right_forearm_mesh_t, right_forearm_scale, cube);
+			Node * right_forearm = new Node(right_forearm_joint_t, right_forearm_joint_a, right_forearm_mesh_t, right_forearm_scale, cube, sphere);
 			
 		robot->push_child(right_arm, robot->get_root());//Add the arm as child of torso
 		robot->push_child(right_forearm, right_arm);//Add the forearm as child of arm
@@ -196,14 +192,14 @@ static void init()
 		glm::vec3 left_leg_joint_a(0.0,0.0,0.0);
 		glm::vec3 left_leg_joint_t(-torso_width/2.0 + leg_width/2.0, -torso_length/2.0, 0.0);
 		glm::vec3 left_leg_scale(leg_width, leg_length, leg_width);
-		Node * left_leg = new Node(left_leg_joint_t, left_leg_joint_a, left_leg_mesh_t, left_leg_scale, cube);
+		Node * left_leg = new Node(left_leg_joint_t, left_leg_joint_a, left_leg_mesh_t, left_leg_scale, cube, sphere);
 
 			//LEFT LOWER LEG INITIAL VALUES
 			glm::vec3 left_lower_leg_mesh_t(0.0, -lower_leg_length/2.0, 0.0);
 			glm::vec3 left_lower_leg_joint_a(0.0,0.0,0.0);
 			glm::vec3 left_lower_leg_joint_t(0.0,-leg_length,0.0);
 			glm::vec3 left_lower_leg_scale(lower_leg_width, lower_leg_length, lower_leg_width);
-			Node * left_lower_leg = new Node(left_lower_leg_joint_t, left_lower_leg_joint_a, left_lower_leg_mesh_t, left_lower_leg_scale, cube);
+			Node * left_lower_leg = new Node(left_lower_leg_joint_t, left_lower_leg_joint_a, left_lower_leg_mesh_t, left_lower_leg_scale, cube, sphere);
 			
 		robot->push_child(left_leg, robot->get_root());//Add the leg as child of torso
 		robot->push_child(left_lower_leg, left_leg);//Add the forearm as child of arm
@@ -213,20 +209,23 @@ static void init()
 		glm::vec3 right_leg_joint_a(0.0,0.0,0.0);
 		glm::vec3 right_leg_joint_t(torso_width/2.0 - leg_width/2.0, -torso_length/2.0, 0.0);
 		glm::vec3 right_leg_scale(leg_width, leg_length, leg_width);
-		Node * right_leg = new Node(right_leg_joint_t, right_leg_joint_a, right_leg_mesh_t, right_leg_scale, cube);
+		Node * right_leg = new Node(right_leg_joint_t, right_leg_joint_a, right_leg_mesh_t, right_leg_scale, cube, sphere);
 
 			//RIGHT LOWER LEG INITIAL VALUES
 			glm::vec3 right_lower_leg_mesh_t(0.0, -lower_leg_length/2.0, 0.0);
 			glm::vec3 right_lower_leg_joint_a(0.0,0.0,0.0);
 			glm::vec3 right_lower_leg_joint_t(0.0,-leg_length,0.0);
 			glm::vec3 right_lower_leg_scale(lower_leg_width, lower_leg_length, lower_leg_width);
-			Node * right_lower_leg = new Node(right_lower_leg_joint_t, right_lower_leg_joint_a, right_lower_leg_mesh_t, right_lower_leg_scale, cube);
+			Node * right_lower_leg = new Node(right_lower_leg_joint_t, right_lower_leg_joint_a, right_lower_leg_mesh_t, right_lower_leg_scale, cube, sphere);
 			
 
 		robot->push_child(right_leg, robot->get_root());//Add the leg as child of torso
 		robot->push_child(right_lower_leg, right_leg);//Add the forearm as child of arm
 	
-	robot->prepare_traversal(); //THIS LINE IS IMPORTANT FOR TRAVERSING THE TREE DEPTH FIRST, IT POPULATES THE STACK WE WILL USE TO TRAVERSE THE TREE
+	robot->prepare_traversal(); //THIS LINE IS IMPORTANT FOR TRAVERSING THE TREE DEPTH FIRST, IT POPULATES THE ARRAY WE WILL USE TO TRAVERSE THE TREE
+
+	right_arm->spin_me(); // here is where i select which ones to spin for task 7
+	left_forearm->spin_me(); // here is where i select which ones to spin for task 7
 
 	progIM = make_shared<Program>();
 	progIM->setVerbose(true);
@@ -245,7 +244,7 @@ static void init()
 static void render()
 {
 	double t = glfwGetTime(); //time
-	double s = 1 + (0.15/2.0) + (0.15/2.0) * sin(5 * 3.14159 * t);
+	double s = 1 + (0.1/2.0) + (0.1/2.0) * sin(4 * 3.14159 * t); // sin function
 
 	// Get current frame buffer size.
 	int width, height;
@@ -265,14 +264,12 @@ static void render()
 
 	//bind program and go ham
 	MV->pushMatrix();
-
 	prog->bind();
 	glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, &P->topMatrix()[0][0]);
 	
-	
-	robot->draw(MV, prog, s, current);
-	prog->unbind();
+	robot->draw(MV, prog, s, current); // DRAW FUNCTION CALLED ON TREE
 
+	prog->unbind();
 	P->popMatrix();
 	MV->popMatrix();
 
