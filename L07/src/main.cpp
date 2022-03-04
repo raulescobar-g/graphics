@@ -110,7 +110,7 @@ static void init()
 	camera->setInitDistance(2.0f);
 	
 	shape = make_shared<Shape>();
-	shape->loadMesh(RESOURCE_DIR + "bunny.obj");
+	shape->loadMesh(RESOURCE_DIR + "cube.obj");
 	shape->fitToUnitBox();
 	shape->init();
 	
@@ -151,11 +151,11 @@ static void render()
 	prog->bind();
 	glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
 	glUniformMatrix4fv(prog->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
-	glUniform3f(prog->getUniform("lightPos"), 0.0f, 0.0f, 0.0f);
-	glUniform3f(prog->getUniform("ka"), 0.0f, 0.0f, 0.0f);
-	glUniform3f(prog->getUniform("kd"), 0.0f, 0.0f, 0.0f);
-	glUniform3f(prog->getUniform("ks"), 0.0f, 0.0f, 0.0f);
-	glUniform1f(prog->getUniform("s"), 0.0f);
+	glUniform3f(prog->getUniform("lightPos"), 1.0f, 1.0f, 1.0f);
+	glUniform3f(prog->getUniform("ka"), 0.2f, 0.2f, 0.2f);
+	glUniform3f(prog->getUniform("kd"), 0.8f, 0.7f, 0.7f);
+	glUniform3f(prog->getUniform("ks"), 1.0f, 0.9f, 0.8f);
+	glUniform1f(prog->getUniform("s"), 200.0f);
 	shape->draw(prog);
 	prog->unbind();
 	
@@ -180,7 +180,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	// Create a windowed mode window and its OpenGL context.
-	window = glfwCreateWindow(640, 480, "YOUR NAME", NULL, NULL);
+	window = glfwCreateWindow(640, 480, "Raul Escobar", NULL, NULL);
 	if(!window) {
 		glfwTerminate();
 		return -1;
