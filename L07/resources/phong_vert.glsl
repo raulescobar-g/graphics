@@ -2,6 +2,7 @@
 
 uniform mat4 P;
 uniform mat4 MV;
+uniform mat4 iMV;
 
 attribute vec4 aPos; // in object space
 attribute vec3 aNor; // in object space
@@ -16,6 +17,6 @@ void main()
 
 	position = MV * aPos;
 
-	normal =  MV * vec4(aNor,0.0);
+	normal =  normalize(iMV * vec4(aNor,0.0));
 	
 }

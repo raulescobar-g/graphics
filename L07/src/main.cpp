@@ -92,6 +92,7 @@ static void init()
 	glEnable(GL_DEPTH_TEST);
 
 	prog = make_shared<Program>();
+	
 	prog->setShaderNames(RESOURCE_DIR + "vert.glsl", RESOURCE_DIR + "frag.glsl");
 	prog->setVerbose(true);
 	prog->init();

@@ -12,11 +12,13 @@ varying vec4 position;
 void main()
 {
 	vec3 n = normalize(normal.xyz);
-	vec3 h = normalize((normalize(lightPos.xyz-position.xyz) - (normalize(position.xyz)) ) / 2.0);
-
+	vec3 h = normalize((normalize(lightPos.xyz-position.xyz) - (normalize(position.xyz)) ));
 	vec3 ca = ka;
 	vec3 cs = ks * pow(max(0.0, dot(h,n)), s);
 	vec3 cd = kd * max(0.0 , dot(n.xyz, normalize(lightPos.xyz-position.xyz)));
 
-	gl_FragColor = vec4(ca.r + cd.r + cs.r, ca.g + cd.g + cs.g, ca.b + cd.b + cs.b, 1.0);
+	float r = ca.r + cs.r + cd.r;
+	float g = ca.g + cs.g + cd.g;
+	float b = ca.b + cs.b + cd.b;
+	gl_FragColor = vec4(r,g,b, 1.0);
 }
