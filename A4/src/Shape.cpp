@@ -84,6 +84,7 @@ void Shape::fitToUnitBox()
 		vmax.y = max(vmax.y, v.y);
 		vmax.z = max(vmax.z, v.z);
 	}
+
 	glm::vec3 center = 0.5f*(vmin + vmax);
 	glm::vec3 diff = vmax - vmin;
 	float diffmax = diff.x;
@@ -96,6 +97,7 @@ void Shape::fitToUnitBox()
 		posBuf[i+2] = (posBuf[i+2] - center.z) * scale;
 	}
 }
+
 
 void Shape::init()
 {

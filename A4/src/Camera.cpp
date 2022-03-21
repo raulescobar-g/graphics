@@ -5,64 +5,40 @@
 #include "Camera.h"
 #include "MatrixStack.h"
 
+#define FOVY_SPEED 0.1
+
 Camera::Camera() :
 	aspect(1.0f),
 	fovy((float)(45.0*M_PI/180.0)),
 	znear(0.1f),
 	zfar(1000.0f),
 	rotations(0.0, 0.0),
-	translations(0.0f, 0.0f, -5.0f),
+	translations(0.0f, 1.0f, -5.0f),
 	rfactor(0.01f),
 	tfactor(0.001f),
-	sfactor(0.005f)
-{
-}
+	sfactor(0.005f),
+	pos(0.0f,1.0f,-5.0f),
+	yaw(glm::pi<float>()),
+	pitch(0.0f)
+	{}
 
-Camera::~Camera()
-{
-}
+Camera::~Camera(){}
 
-void Camera::mouseClicked(float x, float y, bool shift, bool ctrl, bool alt)
-{
-	mousePrev.x = x;
-	mousePrev.y = y;
-	if(shift) {
-		state = Camera::TRANSLATE;
-	} else if(ctrl) {
-		state = Camera::SCALE;
-	} else {
-		state = Camera::ROTATE;
-	}
-}
 
-void Camera::mouseMoved(float x, float y)
-{
-	glm::vec2 mouseCurr(x, y);
-	glm::vec2 dv = mouseCurr - mousePrev;
-	switch(state) {
-		case Camera::ROTATE:
-			rotations += rfactor * dv;
-			break;
-		case Camera::TRANSLATE:
-			translations.x -= translations.z * tfactor * dv.x;
-			translations.y += translations.z * tfactor * dv.y;
-			break;
-		case Camera::SCALE:
-			translations.z *= (1.0f - sfactor * dv.y);
-			break;
-	}
-	mousePrev = mouseCurr;
-}
-
-void Camera::applyProjectionMatrix(std::shared_ptr<MatrixStack> P) const
-{
-	// Modify provided MatrixStack
+void Camera::applyProjectionMatrix(std::shared_ptr<MatrixStack> P) const{
 	P->multMatrix(glm::perspective(fovy, aspect, znear, zfar));
 }
 
-void Camera::applyViewMatrix(std::shared_ptr<MatrixStack> MV) const
-{
-	MV->translate(translations);
-	MV->rotate(rotations.y, glm::vec3(1.0f, 0.0f, 0.0f));
-	MV->rotate(rotations.x, glm::vec3(0.0f, 1.0f, 0.0f));
+void Camera::applyViewMatrix(std::shared_ptr<MatrixStack> MV) const{
+	MV->multMatrix(glm::lookAt(pos, pos + glm::normalize(glm::vec3(sin(yaw)*cos(pitch), sin(pitch), cos(yaw)*cos(pitch))), glm::vec3(0.0,1.0,0.0) ));
+}
+
+void Camera::increment_fovy() {
+	fovy += 0.1 * FOVY_SPEED;
+	if (fovy > 114.0f * glm::pi<float>()/180.0f) fovy = 114.0f * glm::pi<float>()/180.0f;
+}
+	
+void Camera::decrement_fovy() {
+	fovy -= 0.1 * FOVY_SPEED;
+	if (fovy < 4.0f * glm::pi<float>()/180.0f) fovy = 4.0f * glm::pi<float>()/180.0f;
 }

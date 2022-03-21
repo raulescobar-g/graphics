@@ -25,6 +25,9 @@ public:
 	void init();
 	void draw(const std::shared_ptr<Program> prog) const;
 	
+	void set_id(std::string s) {id=s;};
+	std::string get_id() {return id;};
+	
 private:
 	std::vector<float> posBuf;
 	std::vector<float> norBuf;
@@ -32,6 +35,8 @@ private:
 	unsigned posBufID;
 	unsigned norBufID;
 	unsigned texBufID;
+	std::string id;
+
 };
 
 #endif

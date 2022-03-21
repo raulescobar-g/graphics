@@ -33,46 +33,75 @@ using namespace std;
 
 #define OBJECT_AMOUNT 100
 #define MATERIAL_COUNT 100
-#define X_BOUND 100.0f
-#define Z_BOUND 100.0f
-#define SCALE_BOUND 5.0f
+#define MOVEMENT_SPEED 10.0f
+#define GRAVITY 15.0
+#define JUMP_SPEED 10.0
+#define SENSITIVITY 0.005
+#define SUN_SIZE 10.0
 
 GLFWwindow *window; // Main application window
 string RESOURCE_DIR = "./"; // Where the resources are loaded from
 
 shared_ptr<Camera> camera;
+
 shared_ptr<Program> prog_p;
+shared_ptr<Program> prog_light;
+
 shared_ptr<Shape> bunny;
 shared_ptr<Shape> teapot;
 shared_ptr<Shape> sphere;
 shared_ptr<Shape> ground;
 
 bool keyToggles[256] = {false}; // only for English keyboards!
+bool inputs[256] = {false}; // only for English keyboards!
 
-vector<Material> materials;
+vector< shared_ptr<Material> > materials;
 vector<Light> lights;
 vector<Object> objects;
 
+// could not think of a better way to initialize these values probably bad practice
+double o_x = 0.0;			
+double o_y = 0.0;
+float t;
+float jump_t;
 
-static void error_callback(int error, const char *description){ cerr << description << endl;}
-static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods){ if(key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) { glfwSetWindowShouldClose(window, GL_TRUE);}}
-static void mouse_button_callback(GLFWwindow *window, int button, int action, int mods){
-	double xmouse, ymouse;
-	int width, height;
-	glfwGetCursorPos(window, &xmouse, &ymouse);
-	glfwGetWindowSize(window, &width, &height);
-	if(action == GLFW_PRESS) { camera->mouseClicked((float)xmouse, (float)ymouse, (mods & GLFW_MOD_SHIFT) != 0 , (mods & GLFW_MOD_CONTROL) != 0 , (mods & GLFW_MOD_ALT) != 0);}
+static void error_callback(int error, const char *description) { cerr << description << endl; }
+
+static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods){
+	
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) { glfwSetWindowShouldClose(window, GL_TRUE);} 	// tried to keep these in one line per key to not litter the file
+	if (key == GLFW_KEY_W) inputs[(unsigned)'w'] = action != GLFW_RELEASE ? true : false;				//value has a default of false. gets set to true if action is not release and it will only be set to false if action is release
+	if (key == GLFW_KEY_S) inputs[(unsigned)'s'] = action != GLFW_RELEASE ? true : false;
+	if (key == GLFW_KEY_D) inputs[(unsigned)'d'] = action != GLFW_RELEASE ? true : false;
+	if (key == GLFW_KEY_A) inputs[(unsigned)'a'] = action != GLFW_RELEASE ? true : false;
+	
+	if (key == GLFW_KEY_Z && (mods == GLFW_MOD_SHIFT || inputs[(unsigned) 'Z'])) inputs[(unsigned)'Z'] = action != GLFW_RELEASE ? true : false;
+	if (key == GLFW_KEY_Z && mods != GLFW_MOD_SHIFT && !inputs[(unsigned) 'Z']) inputs[(unsigned)'z'] = action != GLFW_RELEASE ? true : false;
+
+	if (key == GLFW_KEY_SPACE && action != GLFW_RELEASE && !inputs[(unsigned)' ']) { // allows you to hold down spacebars
+		inputs[(unsigned)' '] = true;
+		jump_t = glfwGetTime();
+	}
+	
 }
 
 // This function is called when the mouse moves
+
 static void cursor_position_callback(GLFWwindow* window, double xmouse, double ymouse){
-	int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-	if(state == GLFW_PRESS) { camera->mouseMoved((float)xmouse, (float)ymouse);}
+
+	float xdiff = (xmouse - o_x) * SENSITIVITY;
+	float ydiff = (ymouse - o_y) * SENSITIVITY;
+
+	camera->yaw -= xdiff;
+	camera->pitch -= ydiff;
+
+	if (camera->pitch > glm::pi<float>()/3.0f) { camera->pitch = glm::pi<float>()/3.0f;}
+	if (camera->pitch < -glm::pi<float>()/3.0f) { camera->pitch = -glm::pi<float>()/3.0f;}
+	o_x = xmouse;
+	o_y = ymouse;
 }
 
-static void char_callback(GLFWwindow *window, unsigned int key){
-	keyToggles[key] = !keyToggles[key];
-}
+static void char_callback(GLFWwindow *window, unsigned int key){keyToggles[key] = !keyToggles[key];}
 
 // If the window is resized, capture the new size and reset the viewport
 static void resize_callback(GLFWwindow *window, int width, int height){ glViewport(0, 0, width, height);}
@@ -94,50 +123,104 @@ static void init(){
 	prog_p->addUniform("iMV");
 	prog_p->addUniform("P");
 	prog_p->addUniform("lightPos1");
-	prog_p->addUniform("l1");
 	prog_p->addUniform("ka");
 	prog_p->addUniform("kd");
 	prog_p->addUniform("ks");
 	prog_p->addUniform("s");
 	prog_p->setVerbose(false);
 
-	Light l1("lightPos1","l1", glm::vec3(100.0f, 50.0f, -100.0f), glm::vec3(0.8f, 0.8f, 0.8f));
+	prog_light = make_shared<Program>();
+	prog_light->setShaderNames(RESOURCE_DIR + "light_vert.glsl", RESOURCE_DIR + "light_frag.glsl");
+	prog_light->setVerbose(true);
+	prog_light->init();
+	prog_light->addAttribute("aPos");
+	prog_light->addUniform("MV");
+	prog_light->addUniform("P");
+	prog_light->setVerbose(false);
+
+	Light l1("lightPos1", glm::vec3(100.0f, 50.0f, -100.0f));
 	lights.push_back(l1);
 	
 	camera = make_shared<Camera>();
-	camera->setInitDistance(2.0f); // Camera's initial Z translation
 	
 	bunny = make_shared<Shape>();
 	bunny->loadMesh(RESOURCE_DIR + "bunny.obj");
-	bunny->init();
 	bunny->fitToUnitBox();
+	bunny->init();
+	bunny->set_id("bunny");
+	
 
 	teapot = make_shared<Shape>();
 	teapot->loadMesh(RESOURCE_DIR + "teapot.obj");
-	teapot->init();
 	teapot->fitToUnitBox();
+	teapot->init();
+	teapot->set_id("teapot");
+	
 
 	sphere = make_shared<Shape>();
 	sphere->loadMesh(RESOURCE_DIR + "sphere.obj");
-	sphere->init();
 	sphere->fitToUnitBox();
+	sphere->init();
+	sphere->set_id("sphere");
+	
 
 	ground = make_shared<Shape>();
 	ground->loadMesh(RESOURCE_DIR + "square.obj");
-	ground->init();
 	ground->fitToUnitBox();
+	ground->init();
+	ground->set_id("ground");
+	
 
-	for (int i = 0; i < MATERIAL_COUNT; ++i){
-		materials.push_back(Material(glm::vec3((rand()%100)/100.0f,(rand()%100)/100.0f,(rand()%100)/100.0f),glm::vec3((rand()%100)/100.0f,(rand()%100)/100.0f,(rand()%100)/100.0f),glm::vec3((rand()%100)/100.0f,(rand()%100)/100.0f,(rand()%100)/100.0f),(float)(rand()%1000)));
+	for (int i = 0; i < MATERIAL_COUNT; ++i){ // generates materials with random values for ambient,diffuse,specular rgb values and a random 's' exponent from 0-1000
+		materials.push_back(
+			make_shared<Material>( // tweaking these values further does not make sense so I'll just leave them hardcoded like this
+				glm::vec3((rand()%101)/100.0f,  (rand()%101)/100.0f,  (rand()%101)/100.0f),
+				glm::vec3((rand()%101)/100.0f,  (rand()%101)/100.0f,  (rand()%101)/100.0f),
+				glm::vec3((rand()%101)/100.0f,  (rand()%101)/100.0f,  (rand()%101)/100.0f),
+				(float)(rand()%1001)
+			)
+		);
 	}
 
-	shared_ptr<Shape> t = teapot;
-	shared_ptr<Shape> b = bunny;
-	for (int i = 0; i < OBJECT_AMOUNT; ++i){
-		objects.push_back(Object(materials.size(), X_BOUND,Z_BOUND,SCALE_BOUND,i%2==0?t:b));
+	shared_ptr<Shape> teapot_pointer = teapot; // pushing half bunnies and half teapots to our objects vector with random materials
+	shared_ptr<Shape> bunny_pointer = bunny;
+	for (int i = 0; i < OBJECT_AMOUNT/2; ++i){
+		objects.push_back(Object(materials[rand() % materials.size()],teapot_pointer));
+	}
+	for (int i = 0; i < OBJECT_AMOUNT/2; ++i){
+		objects.push_back(Object(materials[rand() % materials.size()], bunny_pointer));
 	}
 	
 	GLSL::checkError(GET_FILE_LINE);
+}
+
+static void input_handling() {
+	float dt = glfwGetTime() - t;
+	t = glfwGetTime();
+	glm::vec3 buff(0.0f,0.0f,0.0f);
+
+	if (inputs[(unsigned)'w']) {buff += glm::normalize(glm::vec3( sin(camera->yaw)*cos(camera->pitch) , 0.0f, cos(camera->yaw)*cos(camera->pitch))); }
+	if (inputs[(unsigned)'s']) {buff -= glm::normalize(glm::vec3( sin(camera->yaw)*cos(camera->pitch) , 0.0f, cos(camera->yaw)*cos(camera->pitch))); }
+	if (inputs[(unsigned)'a']) {buff -= glm::normalize(glm::cross(glm::vec3( sin(camera->yaw)*cos(camera->pitch) , 0.0f, cos(camera->yaw)*cos(camera->pitch)), glm::vec3(0.0f, 1.0f, 0.0f)));}
+	if (inputs[(unsigned)'d']) {buff += glm::normalize(glm::cross(glm::vec3( sin(camera->yaw)*cos(camera->pitch) , 0.0f, cos(camera->yaw)*cos(camera->pitch)), glm::vec3(0.0f, 1.0f, 0.0f)));}
+
+	if (glm::length(buff) > 0.00001f || glm::length(buff) < -0.00001f) camera->pos += glm::normalize(buff) * MOVEMENT_SPEED * dt; // keeps the movement the same speed even if moving diagonally by summing direction of movement vectors and normalizing
+
+	// jumping capabilities :p
+	if (inputs[(unsigned)' ']) {
+		float _t = t - jump_t; // make the time start at the moment when the jump began
+		float dy = (JUMP_SPEED  -  GRAVITY * _t) * dt;
+		if (camera->pos.y + dy >= 1.0f) {
+			camera->pos.y += dy; // adding the position differential derived from the kinematic equation of an object in free fall
+		} else {
+			inputs[(unsigned)' '] = false;
+			camera->pos.y = 1.0f;
+		}
+		 
+	}
+
+	if (inputs[(unsigned) 'z']){camera->decrement_fovy();}
+	if (inputs[(unsigned) 'Z']){camera->increment_fovy();}
 }
 
 // This function is called every frame to draw the scene.
@@ -145,117 +228,104 @@ static void render()
 {
 	// Clear framebuffer.
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	if(keyToggles[(unsigned)'c']) {
-		glEnable(GL_CULL_FACE);
-	} else {
-		glDisable(GL_CULL_FACE);
-	}
-	if(keyToggles[(unsigned)'z']) {
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	} else {
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	}
 
 	// Get current frame buffer size.
 	int width, height;
 	glfwGetFramebufferSize(window, &width, &height);
 	camera->setAspect((float)width/(float)height);
 	
-	double t = glfwGetTime();
-	if(!keyToggles[(unsigned)' ']) {
-		// Spacebar turns animation on/off
-		t = 0.0f;
-	}
-
+	
 	// Matrix stacks
 	auto P = make_shared<MatrixStack>();
 	auto MV = make_shared<MatrixStack>();
 	glm::mat4 iMV;
 	
+	prog_p->bind();
 	// Apply camera transforms
 	P->pushMatrix();
 	camera->applyProjectionMatrix(P);
-	MV->rotate(3.14159/4.0, 0.0f,1.0f,0.0f);
-	MV->pushMatrix();
 	camera->applyViewMatrix(MV);
+	MV->rotate(glm::pi<float>()/4.0, 0.0f,1.0f,0.0f);
+	MV->pushMatrix();
 
-	prog_p->bind();
-
-	for (Object& obj : objects){
+	for (Object& obj : objects){ //loops over objects except lights and ground
 		MV->pushMatrix();
-
 			
-			MV->rotate(obj.rotation,0.0f,1.0f,0.0f);
-			MV->scale(obj.scale,obj.scale,obj.scale);
+			
+			obj.update(t);
 			MV->translate(obj.x, obj.y, obj.z);
-
-			iMV = glm::inverse(glm::transpose(glm::mat4(MV->topMatrix())));
-
+			MV->scale(obj.scale,obj.scale,obj.scale);
+			MV->rotate(obj.rotation,0.0f,1.0f,0.0f);
 			
+			iMV = glm::transpose(glm::inverse(glm::mat4(MV->topMatrix())));
+
 			glUniformMatrix4fv(prog_p->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
 			glUniformMatrix4fv(prog_p->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
 			glUniformMatrix4fv(prog_p->getUniform("iMV"), 1, GL_FALSE, glm::value_ptr(iMV));
-			glUniform3f(prog_p->getUniform("ka"), materials[obj.mat].ka.x, materials[obj.mat].ka.y, materials[obj.mat].ka.z);
-			glUniform3f(prog_p->getUniform("kd"), materials[obj.mat].kd.x, materials[obj.mat].kd.y, materials[obj.mat].kd.z);
-			glUniform3f(prog_p->getUniform("ks"), materials[obj.mat].ks.x, materials[obj.mat].ks.y, materials[obj.mat].ks.z);
-			glUniform1f(prog_p->getUniform("s"), materials[obj.mat].s );
+			glUniform3f(prog_p->getUniform("ka"), obj.material->ka.x, obj.material->ka.y, obj.material->ka.z);
+			glUniform3f(prog_p->getUniform("kd"), obj.material->kd.x, obj.material->kd.y, obj.material->kd.z);
+			glUniform3f(prog_p->getUniform("ks"), obj.material->ks.x, obj.material->ks.y, obj.material->ks.z);
+			glUniform1f(prog_p->getUniform("s"), obj.material->s );
 
 			obj.shape->draw(prog_p); 	
 			
 		MV->popMatrix();
 		
 	}
+
+	prog_p->unbind();
 	
+	for (Light& l : lights) { // looped but we only have one light, maybe we add more lights later
 
-	for (Light l : lights) {
-		MV->pushMatrix();
+		prog_p->bind(); // calculates the light position and sends it to the frag shader
+		glm::vec3 world_light = MV->topMatrix() * glm::vec4(l.position,1.0f);
+		glUniform3f(prog_p->getUniform(l.pos_name), world_light.x, world_light.y, world_light.z);
+		prog_p->unbind();
+
+		MV->pushMatrix(); //draws the sphere with its custom shaders
+			prog_light->bind();
+
 			MV->translate(l.position.x, l.position.y, l.position.z);
-			MV->scale(10.0f, 10.0f, 10.0f);
+			MV->scale(SUN_SIZE, SUN_SIZE, SUN_SIZE);
 
-			iMV = glm::inverse(glm::transpose(glm::mat4(MV->topMatrix())));
-
+			iMV = glm::transpose(glm::inverse(glm::mat4(MV->topMatrix())));
 			
-			glUniformMatrix4fv(prog_p->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
-			glUniformMatrix4fv(prog_p->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
-			glUniformMatrix4fv(prog_p->getUniform("iMV"), 1, GL_FALSE, glm::value_ptr(iMV));
-
+			glUniformMatrix4fv(prog_light->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
+			glUniformMatrix4fv(prog_light->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
 			
+			sphere->draw(prog_light);
 
-			glUniform3f(prog_p->getUniform("ka"), 0.9f, 0.9f, 0.0f);
-			glUniform3f(prog_p->getUniform("kd"), 0.9f, 0.9f, 0.0f);
-			glUniform3f(prog_p->getUniform("ks"), 0.9f, 0.9f, 0.0f);
-			glUniform1f(prog_p->getUniform("s"),0.0f );
-
-			glUniform3f(prog_p->getUniform(l.pos_name), l.position.x, l.position.y, l.position.z);
-			glUniform3f(prog_p->getUniform(l.color_name), l.color.r, l.color.g, l.color.b);
-
-			sphere->draw(prog_p);
+			prog_light->unbind();
 		MV->popMatrix();
+
+		
 	}
 
+	prog_p->bind();
 	MV->pushMatrix();
 		
 		MV->translate(50.0f,0.0f,-50.0f);
 		MV->scale(100.0f, 100.0f, 100.0f);
-		MV->rotate(3.14159/2.0f,-1.0f,0.0f,0.0f);
+		MV->rotate(glm::pi<float>()/2.0f,-1.0f,0.0f,0.0f);
 
-		iMV = glm::inverse(glm::transpose(glm::mat4(MV->topMatrix())));
+		iMV = glm::transpose(glm::inverse(glm::mat4(MV->topMatrix())));
 		
 		glUniformMatrix4fv(prog_p->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
 		glUniformMatrix4fv(prog_p->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
 		glUniformMatrix4fv(prog_p->getUniform("iMV"), 1, GL_FALSE, glm::value_ptr(iMV));
 
-		glUniform3f(prog_p->getUniform("ka"), 0.3f, 0.9f, 0.3f);
-		glUniform3f(prog_p->getUniform("kd"), 0.3f, 0.9f, 0.3f);
+		glUniform3f(prog_p->getUniform("ka"), 0.3f, 0.7f, 0.3f);
+		glUniform3f(prog_p->getUniform("kd"), 0.3f, 0.7f, 0.3f);
 		glUniform3f(prog_p->getUniform("ks"), 0.1f, 0.3f, 0.1f);
-		glUniform1f(prog_p->getUniform("s"),0.0f );
+		glUniform1f(prog_p->getUniform("s"), 0.0f);
 		
 		ground->draw(prog_p);
 	MV->popMatrix();
 
 	prog_p->unbind();
-	MV->popMatrix();
+	MV->popMatrix();	
 	P->popMatrix();
+	
 	
 	GLSL::checkError(GET_FILE_LINE);
 }
@@ -302,13 +372,18 @@ int main(int argc, char **argv)
 	// Set cursor position callback.
 	glfwSetCursorPosCallback(window, cursor_position_callback);
 	// Set mouse button callback.
-	glfwSetMouseButtonCallback(window, mouse_button_callback);
+	//glfwSetMouseButtonCallback(window, mouse_button_callback);
 	// Set the window resize call back.
 	glfwSetFramebufferSizeCallback(window, resize_callback);
+
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); // THIS MAKES THE CURSOR DISAPPEAR
+
 	// Initialize scene.
 	init();
 	// Loop until the user closes the window.
 	while(!glfwWindowShouldClose(window)) {
+		// update position and camera
+		input_handling();
 		// Render scene.
 		render();
 		// Swap front and back buffers.

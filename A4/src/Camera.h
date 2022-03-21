@@ -20,7 +20,6 @@ public:
 	
 	Camera();
 	virtual ~Camera();
-	void setInitDistance(float z) { translations.z = -std::abs(z); }
 	void setAspect(float a) { aspect = a; };
 	void setRotationFactor(float f) { rfactor = f; };
 	void setTranslationFactor(float f) { tfactor = f; };
@@ -29,6 +28,13 @@ public:
 	void mouseMoved(float x, float y);
 	void applyProjectionMatrix(std::shared_ptr<MatrixStack> P) const;
 	void applyViewMatrix(std::shared_ptr<MatrixStack> MV) const;
+
+	void increment_fovy();
+	void decrement_fovy();
+
+	glm::vec3 pos;
+	float yaw;
+	float pitch;
 	
 private:
 	float aspect;
@@ -42,6 +48,9 @@ private:
 	float rfactor;
 	float tfactor;
 	float sfactor;
+
+
+	
 };
 
 #endif

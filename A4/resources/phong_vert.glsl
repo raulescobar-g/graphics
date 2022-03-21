@@ -11,6 +11,7 @@ varying vec3 position;
 varying vec3 normal;
 
 
+
 void main()
 {
 	position = (MV * aPos).xyz;

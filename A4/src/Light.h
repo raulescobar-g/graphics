@@ -9,11 +9,9 @@
 
 class Light {
     public:
-        Light(std::string name,std::string cname, glm::vec3 position, glm::vec3 color) : pos_name(name), color_name(cname), position(position), color(color){};
+        Light(std::string name, glm::vec3 position) : pos_name(name), position(position){};
         std::string pos_name;
-        std::string color_name;
         glm::vec3 position;
-        glm::vec3 color;
         
 };
 
