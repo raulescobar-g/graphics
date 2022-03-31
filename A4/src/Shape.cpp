@@ -164,5 +164,5 @@ void Shape::draw(const shared_ptr<Program> prog) const
 	glDisableVertexAttribArray(h_pos);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	
-	GLSL::checkError(GET_FILE_LINE);
+	//GLSL::checkError(GET_FILE_LINE);
 }

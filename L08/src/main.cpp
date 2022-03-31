@@ -239,6 +239,7 @@ static void render()
 	prog->bind();
 	texture0->bind(prog->getUniform("texture0"));
 	texture1->bind(prog->getUniform("texture1"));
+
 	glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
 	glUniformMatrix4fv(prog->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
 	glUniformMatrix3fv(prog->getUniform("T1"), 1, GL_FALSE, glm::value_ptr(T1));
@@ -250,6 +251,7 @@ static void render()
 	glVertexAttribPointer(prog->getAttribute("aTex"), 2, GL_FLOAT, GL_FALSE, 0, (void *)0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bufIDs["bInd"]);
 	glDrawElements(GL_TRIANGLES, indCount, GL_UNSIGNED_INT, (void *)0);
+	
 	texture1->unbind();
 	texture0->unbind();
 	prog->unbind();

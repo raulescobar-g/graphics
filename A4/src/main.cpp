@@ -28,6 +28,7 @@
 #include "Material.h"
 #include "Light.h"
 #include "Object.h"
+#include "Texture.h"
 
 using namespace std;
 
@@ -38,6 +39,9 @@ using namespace std;
 #define JUMP_SPEED 10.0
 #define SENSITIVITY 0.005
 #define SUN_SIZE 10.0
+#define SPIN_SPEED 1.0
+
+#define MINIMAP_SIZE 0.5
 
 GLFWwindow *window; // Main application window
 string RESOURCE_DIR = "./"; // Where the resources are loaded from
@@ -46,11 +50,17 @@ shared_ptr<Camera> camera;
 
 shared_ptr<Program> prog_p;
 shared_ptr<Program> prog_light;
+shared_ptr<Program> prog_hud;
+shared_ptr<Program> prog_top;
+shared_ptr<Program> prog_ground;
+
+shared_ptr<Texture> grass;
 
 shared_ptr<Shape> bunny;
 shared_ptr<Shape> teapot;
 shared_ptr<Shape> sphere;
 shared_ptr<Shape> ground;
+shared_ptr<Shape> frust;
 
 bool keyToggles[256] = {false}; // only for English keyboards!
 bool inputs[256] = {false}; // only for English keyboards!
@@ -59,11 +69,13 @@ vector< shared_ptr<Material> > materials;
 vector<Light> lights;
 vector<Object> objects;
 
+vector<Object> hud_objects;
+vector<Light> hud_lights;
+
 // could not think of a better way to initialize these values probably bad practice
 double o_x = 0.0;			
 double o_y = 0.0;
-float t;
-float jump_t;
+float t, jump_t, dt;
 
 static void error_callback(int error, const char *description) { cerr << description << endl; }
 
@@ -113,6 +125,9 @@ static void init(){
 	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 	glEnable(GL_DEPTH_TEST);
 
+	int width, height;
+	glfwGetFramebufferSize(window, &width, &height);
+
 	prog_p = make_shared<Program>();
 	prog_p->setShaderNames(RESOURCE_DIR + "phong_vert.glsl", RESOURCE_DIR + "phong_frag.glsl");
 	prog_p->setVerbose(true);
@@ -137,6 +152,56 @@ static void init(){
 	prog_light->addUniform("MV");
 	prog_light->addUniform("P");
 	prog_light->setVerbose(false);
+
+	prog_hud = make_shared<Program>();
+	prog_hud->setShaderNames(RESOURCE_DIR + "hud_vert.glsl", RESOURCE_DIR + "hud_frag.glsl");
+	prog_hud->setVerbose(true);
+	prog_hud->init();
+	prog_hud->addAttribute("aPos");
+	prog_hud->addAttribute("aNor");
+	prog_hud->addUniform("MV");
+	prog_hud->addUniform("iMV");
+	prog_hud->addUniform("P");
+	prog_hud->addUniform("lightPosHud");
+	prog_hud->addUniform("ka");
+	prog_hud->addUniform("kd");
+	prog_hud->addUniform("ks");
+	prog_hud->addUniform("s");
+	prog_hud->setVerbose(false);
+
+	prog_top = make_shared<Program>();
+	prog_top->setShaderNames(RESOURCE_DIR + "top_vert.glsl", RESOURCE_DIR + "top_frag.glsl");
+	prog_top->setVerbose(true);
+	prog_top->init();
+	prog_top->addAttribute("aPos");
+	prog_top->addAttribute("aNor");
+	prog_top->addUniform("MV");
+	prog_top->addUniform("iMV");
+	prog_top->addUniform("P");
+	prog_top->addUniform("lightPosTop");
+	prog_top->addUniform("ka");
+	prog_top->addUniform("kd");
+	prog_top->addUniform("ks");
+	prog_top->addUniform("s");
+	prog_top->setVerbose(false);
+
+	prog_ground = make_shared<Program>();
+	prog_ground->setShaderNames(RESOURCE_DIR + "ground_vert.glsl", RESOURCE_DIR + "ground_frag.glsl");
+	prog_ground->setVerbose(true);
+	prog_ground->init();
+	prog_ground->addAttribute("aPos");
+	prog_ground->addAttribute("aTex");
+	prog_ground->addUniform("MV");
+	prog_ground->addUniform("P");
+	prog_ground->addUniform("T");
+	prog_ground->addUniform("texture");
+	prog_ground->setVerbose(false);
+
+	grass = make_shared<Texture>();
+	grass->setFilename(RESOURCE_DIR + "grass.jpg");
+	grass->init();
+	grass->setUnit(0);
+	grass->setWrapModes(GL_REPEAT, GL_REPEAT);
 
 	Light l1("lightPos1", glm::vec3(100.0f, 50.0f, -100.0f));
 	lights.push_back(l1);
@@ -169,6 +234,12 @@ static void init(){
 	ground->fitToUnitBox();
 	ground->init();
 	ground->set_id("ground");
+
+	frust = make_shared<Shape>();
+	frust->loadMesh(RESOURCE_DIR + "frustum.obj");
+	frust->fitToUnitBox();
+	frust->init();
+	frust->set_id("frustum");
 	
 
 	for (int i = 0; i < MATERIAL_COUNT; ++i){ // generates materials with random values for ambient,diffuse,specular rgb values and a random 's' exponent from 0-1000
@@ -182,20 +253,33 @@ static void init(){
 		);
 	}
 
-	shared_ptr<Shape> teapot_pointer = teapot; // pushing half bunnies and half teapots to our objects vector with random materials
-	shared_ptr<Shape> bunny_pointer = bunny;
+	
 	for (int i = 0; i < OBJECT_AMOUNT/2; ++i){
-		objects.push_back(Object(materials[rand() % materials.size()],teapot_pointer));
+		objects.push_back(Object(materials[rand() % materials.size()],teapot));
 	}
 	for (int i = 0; i < OBJECT_AMOUNT/2; ++i){
-		objects.push_back(Object(materials[rand() % materials.size()], bunny_pointer));
+		objects.push_back(Object(materials[rand() % materials.size()], bunny));
 	}
+
+
+
+	// HUD OBJECTS AND LIGHTS
+	shared_ptr<Material> hud_material = make_shared<Material>(glm::vec3(0.02f,0.02f,0.02f),glm::vec3(0.6f,0.6f,0.65f),glm::vec3(0.01f,0.01f,0.02f),0.0f);
+	Object hud_bunny(hud_material, bunny, glm::vec3((-1.0f*width) + 800.0f, height - 650.0f, -500.0f), 300.0f);
+	Object hud_teapot(hud_material, teapot, glm::vec3((1.0f * width) - 800.0f, height - 650.0f, -500.0f), 300.0f);
+
+	hud_objects.push_back(hud_bunny);
+	hud_objects.push_back(hud_teapot);
+
+	Light hud_light("lightPosHud", glm::vec3(0.0001f, 0.0001f, 0.0001f));
+	hud_lights.push_back(hud_light);
+
 	
 	GLSL::checkError(GET_FILE_LINE);
 }
 
 static void input_handling() {
-	float dt = glfwGetTime() - t;
+	dt = glfwGetTime() - t;
 	t = glfwGetTime();
 	glm::vec3 buff(0.0f,0.0f,0.0f);
 
@@ -232,102 +316,237 @@ static void render()
 	// Get current frame buffer size.
 	int width, height;
 	glfwGetFramebufferSize(window, &width, &height);
-	camera->setAspect((float)width/(float)height);
+
+	for (int i = 0; i < hud_objects.size(); ++i) {
+		hud_objects[i].fitToScreen((float)width, (float)height, i%2==0);
+	}
+
+	glViewport(0, 0, width, height);
 	
 	
 	// Matrix stacks
 	auto P = make_shared<MatrixStack>();
 	auto MV = make_shared<MatrixStack>();
 	glm::mat4 iMV;
+	glm::mat3 T(1.0f);
+	T[0][0] = 100.0f;
+	T[1][1] = 100.0f;
 	
-	prog_p->bind();
-	// Apply camera transforms
+	
+	// HUDDD   ----------------------
 	P->pushMatrix();
-	camera->applyProjectionMatrix(P);
-	camera->applyViewMatrix(MV);
-	MV->rotate(glm::pi<float>()/4.0, 0.0f,1.0f,0.0f);
-	MV->pushMatrix();
-
-	for (Object& obj : objects){ //loops over objects except lights and ground
+	camera->applyOrthoMatrix(P,(float) width, (float) height);
+	prog_hud->bind();
+	for (Object& obj : hud_objects){ //loops over objects in hud
 		MV->pushMatrix();
 			
-			
-			obj.update(t);
+			obj.spin(SPIN_SPEED * dt); 
 			MV->translate(obj.x, obj.y, obj.z);
 			MV->scale(obj.scale,obj.scale,obj.scale);
 			MV->rotate(obj.rotation,0.0f,1.0f,0.0f);
 			
 			iMV = glm::transpose(glm::inverse(glm::mat4(MV->topMatrix())));
 
-			glUniformMatrix4fv(prog_p->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
-			glUniformMatrix4fv(prog_p->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
-			glUniformMatrix4fv(prog_p->getUniform("iMV"), 1, GL_FALSE, glm::value_ptr(iMV));
-			glUniform3f(prog_p->getUniform("ka"), obj.material->ka.x, obj.material->ka.y, obj.material->ka.z);
-			glUniform3f(prog_p->getUniform("kd"), obj.material->kd.x, obj.material->kd.y, obj.material->kd.z);
-			glUniform3f(prog_p->getUniform("ks"), obj.material->ks.x, obj.material->ks.y, obj.material->ks.z);
-			glUniform1f(prog_p->getUniform("s"), obj.material->s );
+			glUniformMatrix4fv(prog_hud->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
+			glUniformMatrix4fv(prog_hud->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
+			glUniformMatrix4fv(prog_hud->getUniform("iMV"), 1, GL_FALSE, glm::value_ptr(iMV));
+			glUniform3f(prog_hud->getUniform("ka"), obj.material->ka.x, obj.material->ka.y, obj.material->ka.z);
+			glUniform3f(prog_hud->getUniform("kd"), obj.material->kd.x, obj.material->kd.y, obj.material->kd.z);
+			glUniform3f(prog_hud->getUniform("ks"), obj.material->ks.x, obj.material->ks.y, obj.material->ks.z);
+			glUniform1f(prog_hud->getUniform("s"), obj.material->s );
 
-			obj.shape->draw(prog_p); 	
+			obj.shape->draw(prog_hud); 	
 			
 		MV->popMatrix();
 		
 	}
 
-	prog_p->unbind();
 	
-	for (Light& l : lights) { // looped but we only have one light, maybe we add more lights later
-
-		prog_p->bind(); // calculates the light position and sends it to the frag shader
-		glm::vec3 world_light = MV->topMatrix() * glm::vec4(l.position,1.0f);
-		glUniform3f(prog_p->getUniform(l.pos_name), world_light.x, world_light.y, world_light.z);
-		prog_p->unbind();
-
-		MV->pushMatrix(); //draws the sphere with its custom shaders
-			prog_light->bind();
-
-			MV->translate(l.position.x, l.position.y, l.position.z);
-			MV->scale(SUN_SIZE, SUN_SIZE, SUN_SIZE);
-
-			iMV = glm::transpose(glm::inverse(glm::mat4(MV->topMatrix())));
-			
-			glUniformMatrix4fv(prog_light->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
-			glUniformMatrix4fv(prog_light->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
-			
-			sphere->draw(prog_light);
-
-			prog_light->unbind();
-		MV->popMatrix();
-
-		
+	for (Light& l : hud_lights) { // looped but we only have one light, maybe we add more lights later
+		glUniform3f(prog_hud->getUniform(l.pos_name), l.position.x, l.position.y, l.position.z);
 	}
+	prog_hud->unbind();
+	P->popMatrix();
+	// HUDDD   ----------------------
 
-	prog_p->bind();
+	
+	P->pushMatrix();	
+	camera->applyProjectionMatrix(P);
+	camera->applyViewMatrix(MV);	
 	MV->pushMatrix();
-		
-		MV->translate(50.0f,0.0f,-50.0f);
-		MV->scale(100.0f, 100.0f, 100.0f);
-		MV->rotate(glm::pi<float>()/2.0f,-1.0f,0.0f,0.0f);
+		prog_p->bind();
+		for (Object& obj : objects){ //loops over objects except lights and ground
+			MV->pushMatrix();
+				
+				obj.update(t);
+				MV->translate(obj.x, obj.y, obj.z);
+				MV->scale(obj.scale,obj.scale,obj.scale);
+				MV->rotate(obj.rotation,0.0f,1.0f,0.0f);
+				
+				iMV = glm::transpose(glm::inverse(glm::mat4(MV->topMatrix())));
 
-		iMV = glm::transpose(glm::inverse(glm::mat4(MV->topMatrix())));
-		
-		glUniformMatrix4fv(prog_p->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
-		glUniformMatrix4fv(prog_p->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
-		glUniformMatrix4fv(prog_p->getUniform("iMV"), 1, GL_FALSE, glm::value_ptr(iMV));
+				glUniformMatrix4fv(prog_p->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
+				glUniformMatrix4fv(prog_p->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
+				glUniformMatrix4fv(prog_p->getUniform("iMV"), 1, GL_FALSE, glm::value_ptr(iMV));
+				glUniform3f(prog_p->getUniform("ka"), obj.material->ka.x, obj.material->ka.y, obj.material->ka.z);
+				glUniform3f(prog_p->getUniform("kd"), obj.material->kd.x, obj.material->kd.y, obj.material->kd.z);
+				glUniform3f(prog_p->getUniform("ks"), obj.material->ks.x, obj.material->ks.y, obj.material->ks.z);
+				glUniform1f(prog_p->getUniform("s"), obj.material->s );
 
-		glUniform3f(prog_p->getUniform("ka"), 0.3f, 0.7f, 0.3f);
-		glUniform3f(prog_p->getUniform("kd"), 0.3f, 0.7f, 0.3f);
-		glUniform3f(prog_p->getUniform("ks"), 0.1f, 0.3f, 0.1f);
-		glUniform1f(prog_p->getUniform("s"), 0.0f);
-		
-		ground->draw(prog_p);
-	MV->popMatrix();
+				obj.shape->draw(prog_p); 	
+				
+			MV->popMatrix();
+			
+		}
 
-	prog_p->unbind();
+		prog_p->unbind();
+	
+		for (Light& l : lights) { // looped but we only have one light, maybe we add more lights later
+
+			prog_p->bind(); // calculates the light position and sends it to the frag shader
+			glm::vec3 world_light = MV->topMatrix() * glm::vec4(l.position,1.0f);
+			glUniform3f(prog_p->getUniform(l.pos_name), world_light.x, world_light.y, world_light.z);
+			prog_p->unbind();
+
+			MV->pushMatrix(); //draws the sphere with its custom shaders
+				prog_light->bind();
+
+				MV->translate(l.position.x, l.position.y, l.position.z);
+				MV->scale(SUN_SIZE, SUN_SIZE, SUN_SIZE);
+
+				iMV = glm::transpose(glm::inverse(glm::mat4(MV->topMatrix())));
+				
+				glUniformMatrix4fv(prog_light->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
+				glUniformMatrix4fv(prog_light->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
+				
+				sphere->draw(prog_light);
+
+				prog_light->unbind();
+			MV->popMatrix();
+
+			
+		}
+		
+		prog_ground->bind();
+		grass->bind(prog_ground->getUniform("texture"));
+		MV->pushMatrix();
+
+			MV->translate(50.0f,0.0f,50.0f);
+			MV->scale(100.0f, 100.0f, 100.0f);
+			MV->rotate(glm::pi<float>()/2.0f,-1.0f,0.0f,0.0f);
+			
+			glUniformMatrix4fv(prog_ground->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
+			glUniformMatrix4fv(prog_ground->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
+			glUniformMatrix3fv(prog_ground->getUniform("T"), 1, GL_FALSE, glm::value_ptr(T));
+			
+			ground->draw(prog_ground);
+		MV->popMatrix();
+		grass->unbind();
+		prog_ground->unbind();
+
 	MV->popMatrix();	
 	P->popMatrix();
 	
 	
-	GLSL::checkError(GET_FILE_LINE);
+
+	if (keyToggles[(unsigned) 't']) {
+		float s = MINIMAP_SIZE;
+		glViewport(0, 0, s*width, s*height);
+		glEnable(GL_SCISSOR_TEST);
+		glScissor(0, 0, s*width, s*height);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glDisable(GL_SCISSOR_TEST);
+
+		auto topP = make_shared<MatrixStack>();
+		auto topMV = make_shared<MatrixStack>();
+		topP->pushMatrix();
+		topMV->pushMatrix();
+
+			
+			//APPLY PROJECTION MATRIX FOR TOP-DOWN VIEWPORT
+			//APPLY VIEW MATRIX FOR TOP-DOWN VIEWPORT
+			camera->applyOrthoTopMatrix(topP, s*width, s*height);
+			camera->applyTopViewMatrix(topMV);
+			
+			//DRAW SCENE
+			prog_top->bind();
+			for (Object& obj : objects){ //loops over objects except lights and ground
+				topMV->pushMatrix();
+					
+					obj.update(t);
+					topMV->translate(obj.x, obj.y, obj.z);
+					topMV->scale(obj.scale,obj.scale,obj.scale);
+					topMV->rotate(obj.rotation,0.0f,1.0f,0.0f);
+					
+					iMV = glm::transpose(glm::inverse(glm::mat4(topMV->topMatrix())));
+
+					glUniformMatrix4fv(prog_top->getUniform("P"), 1, GL_FALSE, glm::value_ptr(topP->topMatrix()));
+					glUniformMatrix4fv(prog_top->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(topMV->topMatrix()));
+					glUniformMatrix4fv(prog_top->getUniform("iMV"), 1, GL_FALSE, glm::value_ptr(iMV));
+					glUniform3f(prog_top->getUniform("ka"), obj.material->ka.x, obj.material->ka.y, obj.material->ka.z);
+					glUniform3f(prog_top->getUniform("kd"), obj.material->kd.x, obj.material->kd.y, obj.material->kd.z);
+					glUniform3f(prog_top->getUniform("ks"), obj.material->ks.x, obj.material->ks.y, obj.material->ks.z);
+					glUniform1f(prog_top->getUniform("s"), obj.material->s );
+
+					obj.shape->draw(prog_top); 	
+				
+				topMV->popMatrix();
+			
+			}
+
+		
+		
+			for (Light& l : lights) { // looped but we only have one light, maybe we add more lights later
+				glm::vec3 world_light = topMV->topMatrix() * glm::vec4(l.position,1.0f);
+				glUniform3f(prog_top->getUniform("lighPosTop"), world_light.x, world_light.y, world_light.z);
+			}
+
+			
+			topMV->pushMatrix();
+				
+				prog_ground->bind();
+				grass->bind(prog_ground->getUniform("texture"));
+				topMV->pushMatrix();
+
+					topMV->translate(50.0f,0.0f,50.0f);
+					topMV->scale(100.0f, 100.0f, 100.0f);
+					topMV->rotate(glm::pi<float>()/2.0f,-1.0f,0.0f,0.0f);
+					
+					glUniformMatrix4fv(prog_ground->getUniform("P"), 1, GL_FALSE, glm::value_ptr(topP->topMatrix()));
+					glUniformMatrix4fv(prog_ground->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(topMV->topMatrix()));
+					glUniformMatrix3fv(prog_ground->getUniform("T"), 1, GL_FALSE, glm::value_ptr(T));
+					
+					ground->draw(prog_ground);
+				topMV->popMatrix();
+				grass->unbind();
+				prog_ground->unbind();
+			topMV->popMatrix();
+
+			topMV->pushMatrix();
+
+				topMV->scale(10.0f);
+
+				iMV = glm::transpose(glm::inverse(glm::mat4(topMV->topMatrix())));
+				
+				glUniformMatrix4fv(prog_top->getUniform("P"), 1, GL_FALSE, glm::value_ptr(topP->topMatrix()));
+				glUniformMatrix4fv(prog_top->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(topMV->topMatrix()));
+				glUniformMatrix4fv(prog_top->getUniform("iMV"), 1, GL_FALSE, glm::value_ptr(iMV));
+
+				glUniform3f(prog_top->getUniform("ka"), 0.1f, 0.02f, 0.02f);
+				glUniform3f(prog_top->getUniform("kd"), 0.8f, 0.6f, 0.6f);
+				glUniform3f(prog_top->getUniform("ks"), 0.1f, 0.01f, 0.01f);
+				glUniform1f(prog_top->getUniform("s"), 0.0f);
+				
+				frust->draw(prog_top);
+			topMV->popMatrix();
+
+		topMV->popMatrix();
+		topP->popMatrix();
+		prog_top->unbind();
+	}
+	
+	
+	
 }
 
 int main(int argc, char **argv)
@@ -346,7 +565,10 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	// Create a windowed mode window and its OpenGL context.
-	window = glfwCreateWindow(640, 480, "Raul Escobar", NULL, NULL);
+	GLFWmonitor *monitor = glfwGetPrimaryMonitor();
+	const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+	window = glfwCreateWindow(1920, 1080, "Raul Escobar",  glfwGetPrimaryMonitor(), NULL);
+	glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
 	if(!window) {
 		glfwTerminate();
 		return -1;
@@ -372,7 +594,7 @@ int main(int argc, char **argv)
 	// Set cursor position callback.
 	glfwSetCursorPosCallback(window, cursor_position_callback);
 	// Set mouse button callback.
-	//glfwSetMouseButtonCallback(window, mouse_button_callback);
+	// glfwSetMouseButtonCallback(window, mouse_button_callback);
 	// Set the window resize call back.
 	glfwSetFramebufferSizeCallback(window, resize_callback);
 
