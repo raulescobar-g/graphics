@@ -113,7 +113,8 @@ static void init()
 	prog->setVerbose(true);
 	prog->init();
 	prog->addAttribute("aPos");
-	prog->addAttribute("aNor");
+	//prog->addAttribute("aNor");
+	prog->addUniform("t");
 	prog->addAttribute("aTex");
 	prog->addUniform("MV");
 	prog->addUniform("iMV");
@@ -149,7 +150,7 @@ static void init()
 	int res = 40;
 	float len = 10.0f;
 	float rad = (2.0f * glm::pi<float>()) / (float) (res-2);
-	
+
 	for (int i = 0; i < res ; ++i) {
 		for (int j = 0; j < res ; ++j) {
 
@@ -157,13 +158,12 @@ static void init()
 			float x = (j / (float) res) * len;
 
 			posBuf.push_back(x);
-			posBuf.push_back(f(x) * cos(theta));
-			posBuf.push_back(f(x) * sin(theta));
-			
+			posBuf.push_back(theta);
+			posBuf.push_back(0.0f);
 
-			norBuf.push_back(x);
-			norBuf.push_back(f(x) * cos(theta));
-			norBuf.push_back(f(x) * sin(theta));
+			norBuf.push_back(0.0f);
+			norBuf.push_back(0.0f);
+			norBuf.push_back(0.0f);
 
 			texBuf.push_back(2.0f*j / (res *0.5f));
 			texBuf.push_back(1.0f - (float) i /  (res * 0.5f));
@@ -249,16 +249,21 @@ static void render()
 	glm::mat4 iMV = glm::transpose(glm::inverse(MV->topMatrix()));
 
 	prog->bind();
+
+	glUniform1f(prog->getUniform("t"), t);
+
 	glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, value_ptr(P->topMatrix()));
 	glEnableVertexAttribArray(prog->getAttribute("aPos"));
-	glEnableVertexAttribArray(prog->getAttribute("aNor"));
+	//glEnableVertexAttribArray(prog->getAttribute("aNor"));
 	glEnableVertexAttribArray(prog->getAttribute("aTex"));
 	glBindBuffer(GL_ARRAY_BUFFER, bufIDs["bPos"]);
 	glVertexAttribPointer(prog->getAttribute("aPos"), 3, GL_FLOAT, GL_FALSE, 0, (void *)0);
 	glBindBuffer(GL_ARRAY_BUFFER, bufIDs["bNor"]);
-	glVertexAttribPointer(prog->getAttribute("aNor"), 3, GL_FLOAT, GL_FALSE, 0, (void *)0);
+	//glVertexAttribPointer(prog->getAttribute("aNor"), 3, GL_FLOAT, GL_FALSE, 0, (void *)0);
 	glBindBuffer(GL_ARRAY_BUFFER, bufIDs["bTex"]);
 	glVertexAttribPointer(prog->getAttribute("aTex"), 2, GL_FLOAT, GL_FALSE, 0, (void *)0);
+
+	
 
 	
 
@@ -272,7 +277,7 @@ static void render()
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glDisableVertexAttribArray(prog->getAttribute("aTex"));
-	glDisableVertexAttribArray(prog->getAttribute("aNor"));
+	//glDisableVertexAttribArray(prog->getAttribute("aNor"));
 	glDisableVertexAttribArray(prog->getAttribute("aPos"));
 	prog->unbind();
 	

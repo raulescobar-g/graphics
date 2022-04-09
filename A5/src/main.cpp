@@ -49,11 +49,14 @@ string RESOURCE_DIR = "./"; // Where the resources are loaded from
 shared_ptr<Camera> camera;
 
 shared_ptr<Program> prog_p;
+shared_ptr<Program> prog_vase;
+shared_ptr<Program> curr_prog;
 
 shared_ptr<Shape> bunny;
 shared_ptr<Shape> teapot;
 shared_ptr<Shape> sphere;
 shared_ptr<Shape> gen_sphere;
+shared_ptr<Shape> vase;
 shared_ptr<Shape> ground;
 
 bool keyToggles[256] = {false}; // only for English keyboards!
@@ -136,6 +139,23 @@ static void init(){
 	prog_p->addUniform("s");
 	prog_p->setVerbose(false);
 
+	prog_vase = make_shared<Program>();
+	prog_vase->setShaderNames(RESOURCE_DIR + "vase_vert.glsl", RESOURCE_DIR + "phong_frag.glsl");
+	prog_vase->setVerbose(true);
+	prog_vase->init();
+	prog_vase->addAttribute("aPos");
+	prog_vase->addUniform("t");
+	prog_vase->addUniform("MV");
+	prog_vase->addUniform("iMV");
+	prog_vase->addUniform("P");
+	prog_vase->addUniform("lightPos");
+	prog_vase->addUniform("lightCol");
+	prog_vase->addUniform("ke");
+	prog_vase->addUniform("kd");
+	prog_vase->addUniform("ks");
+	prog_vase->addUniform("s");
+	prog_vase->setVerbose(false);
+
 	lights = make_shared<Light>("lightPos", "lightCol");
 	
 	camera = make_shared<Camera>();
@@ -159,6 +179,12 @@ static void init(){
 	gen_sphere->fitToUnitBox();
 	gen_sphere->init();
 	gen_sphere->set_id("gen_sphere");
+
+	vase = make_shared<Shape>();
+	vase->createMesh("vase", 20);
+	//vase->fitToUnitBox(); breaks the shape for some reason
+	vase->init();
+	vase->set_id("vase");
 
 	sphere = make_shared<Shape>();
 	sphere->loadMesh(RESOURCE_DIR + "sphere.obj");
@@ -187,12 +213,14 @@ static void init(){
 
 	
 	for (int i = 0; i < OBJECT_AMOUNT; ++i){
-		if (i % 3 == 0) {
+		if (i % 4 == 0) {
 			objects.push_back(Object(materials[i],teapot));
-		} else if (i % 3 == 1) { 
+		} else if (i % 4 == 1) { 
 			objects.push_back(Object(materials[i], bunny));
-		} else {
+		} else if (i % 4 == 2){
 			objects.push_back(Object(materials[i], gen_sphere));
+		} else {
+			objects.push_back(Object(materials[i], vase));
 		}
 	}
 
@@ -262,7 +290,7 @@ static void render()
 	camera->applyViewMatrix(MV);	
 	MV->pushMatrix();
 
-		prog_p->bind();
+		
 
 		for (int i = 0; i < LIGHT_AMOUNT; ++i) { // calc world coords for all lights
 			lights->world_positions[i] = MV->topMatrix() * glm::vec4(lights->position[i],1.0f);
@@ -280,6 +308,8 @@ static void render()
 				MV->translate(obj.x, obj.y, obj.z);
 				MV->scale(obj.scale,obj.scale,obj.scale);
 				MV->rotate(obj.rotation,obj.axis);
+
+				if (obj.shape->get_id() == "vase") {MV->scale(0.1f,0.1f,0.1f);}
 
 				if (obj.shape->get_id() == "gen_sphere") {
 					float Ay = 1.3f;
@@ -300,22 +330,23 @@ static void render()
 				
 				
 				iMV = glm::transpose(glm::inverse(glm::mat4(MV->topMatrix())));
+				
+				curr_prog = obj.shape->get_id() == "vase" ? prog_vase : prog_p;
 
-				// send light coords to gpu
-				glUniform3fv(prog_p->getUniform(lights->pos_name), LIGHT_AMOUNT, value_ptr(lights->world_positions[0]));
-
-				glUniformMatrix4fv(prog_p->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
-				glUniformMatrix4fv(prog_p->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
-				glUniformMatrix4fv(prog_p->getUniform("iMV"), 1, GL_FALSE, glm::value_ptr(iMV));
-				glUniform3f(prog_p->getUniform("ke"), obj.material->ke.x, obj.material->ke.y, obj.material->ke.z);
-				glUniform3f(prog_p->getUniform("kd"), obj.material->kd.x, obj.material->kd.y, obj.material->kd.z);
-				glUniform3f(prog_p->getUniform("ks"), obj.material->ks.x, obj.material->ks.y, obj.material->ks.z);
-				glUniform1f(prog_p->getUniform("s"), obj.material->s );
-
-				glUniform3fv(prog_p->getUniform(lights->pos_name), LIGHT_AMOUNT, value_ptr(lights->world_positions[0]));
-				glUniform3fv(prog_p->getUniform(lights->color_name), LIGHT_AMOUNT, value_ptr(lights->color[0]));
-
-				obj.shape->draw(prog_p); 	
+				curr_prog->bind();
+				glUniform3fv(curr_prog->getUniform(lights->pos_name), LIGHT_AMOUNT, value_ptr(lights->world_positions[0]));
+				if (obj.shape->get_id() == "vase"){ glUniform1f(curr_prog->getUniform("t"), t); }
+				glUniformMatrix4fv(curr_prog->getUniform("P"), 1, GL_FALSE, glm::value_ptr(P->topMatrix()));
+				glUniformMatrix4fv(curr_prog->getUniform("MV"), 1, GL_FALSE, glm::value_ptr(MV->topMatrix()));
+				glUniformMatrix4fv(curr_prog->getUniform("iMV"), 1, GL_FALSE, glm::value_ptr(iMV));
+				glUniform3f(curr_prog->getUniform("ke"), obj.material->ke.x, obj.material->ke.y, obj.material->ke.z);
+				glUniform3f(curr_prog->getUniform("kd"), obj.material->kd.x, obj.material->kd.y, obj.material->kd.z);
+				glUniform3f(curr_prog->getUniform("ks"), obj.material->ks.x, obj.material->ks.y, obj.material->ks.z);
+				glUniform1f(curr_prog->getUniform("s"), obj.material->s );
+				glUniform3fv(curr_prog->getUniform(lights->pos_name), LIGHT_AMOUNT, value_ptr(lights->world_positions[0]));
+				glUniform3fv(curr_prog->getUniform(lights->color_name), LIGHT_AMOUNT, value_ptr(lights->color[0]));
+				obj.shape->draw(curr_prog);
+				curr_prog->unbind(); 	
 				
 			MV->popMatrix();
 			
@@ -324,7 +355,7 @@ static void render()
 
 	MV->popMatrix();	
 	P->popMatrix();
-	prog_p->unbind();
+	
 	
 }
 
