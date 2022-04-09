@@ -35,8 +35,8 @@ using namespace std;
 #define OBJECT_AMOUNT 100
 #define MATERIAL_COUNT 100
 #define MOVEMENT_SPEED 5.0f
-#define GRAVITY 80.0
-#define JUMP_SPEED 10.0
+#define GRAVITY 10.0
+#define JUMP_SPEED 5.0
 #define SENSITIVITY 0.005
 #define SUN_SIZE 0.02
 #define SPIN_SPEED 1.0
@@ -53,6 +53,7 @@ shared_ptr<Program> prog_p;
 shared_ptr<Shape> bunny;
 shared_ptr<Shape> teapot;
 shared_ptr<Shape> sphere;
+shared_ptr<Shape> gen_sphere;
 shared_ptr<Shape> ground;
 
 bool keyToggles[256] = {false}; // only for English keyboards!
@@ -153,6 +154,12 @@ static void init(){
 	teapot->set_id("teapot");
 	
 
+	gen_sphere = make_shared<Shape>();
+	gen_sphere->createMesh("gen_sphere", 20);
+	gen_sphere->fitToUnitBox();
+	gen_sphere->init();
+	gen_sphere->set_id("gen_sphere");
+
 	sphere = make_shared<Shape>();
 	sphere->loadMesh(RESOURCE_DIR + "sphere.obj");
 	sphere->fitToUnitBox();
@@ -166,7 +173,6 @@ static void init(){
 	ground->init();
 	ground->set_id("ground");
 
-	
 
 	for (int i = 0; i < MATERIAL_COUNT; ++i){ 
 		materials.push_back(
@@ -181,7 +187,13 @@ static void init(){
 
 	
 	for (int i = 0; i < OBJECT_AMOUNT; ++i){
-		i % 2 == 0 ? objects.push_back(Object(materials[i],teapot)) : objects.push_back(Object(materials[i], bunny));
+		if (i % 3 == 0) {
+			objects.push_back(Object(materials[i],teapot));
+		} else if (i % 3 == 1) { 
+			objects.push_back(Object(materials[i], bunny));
+		} else {
+			objects.push_back(Object(materials[i], gen_sphere));
+		}
 	}
 
 	objects.push_back( Object(make_shared<Material>(glm::vec3(0.0f,  0.0f,  0.0f), glm::vec3(0.5f,  0.5f,  0.5f), glm::vec3(0.5f,  0.5f,  0.5f), 0.0f), ground, glm::vec3(0.0f,0.0f,0.0f), 10.0f, glm::vec3(-1.0f, 0.0f, 0.0f)));
@@ -221,7 +233,6 @@ static void input_handling() {
 			inputs[(unsigned)' '] = false;
 			camera->pos.y = 0.1f;
 		}
-		 
 	}
 
 	if (inputs[(unsigned) 'z']){camera->decrement_fovy();}
@@ -259,15 +270,30 @@ static void render()
 
 		for (Object& obj : objects){ //loops over objects except lights and ground
 			MV->pushMatrix();
+				
 				float shear_q = 1.0f;
 				glm::mat4 S(1.0f);
 				S[1][0] = shear_q*cos(t*2.0);
 
 				if (obj.shape->get_id() == "bunny")  obj.spin(SPIN_SPEED * dt);
-				MV->translate(obj.x, obj.y, obj.z);
 
+				MV->translate(obj.x, obj.y, obj.z);
 				MV->scale(obj.scale,obj.scale,obj.scale);
 				MV->rotate(obj.rotation,obj.axis);
+
+				if (obj.shape->get_id() == "gen_sphere") {
+					float Ay = 1.3f;
+					float As = 0.5f;
+					float p = 1.7f;
+					float t0 = 0.9f;
+					float y = Ay * (0.5f * sin((2.0f * glm::pi<float>() / p) * (t + t0)) + 0.5f);
+					float s = -As * (0.5f * cos((4.0f * glm::pi<float>() / p) * (t + t0)) + 0.5f) + 1.0f;
+
+					
+					MV->translate(0.0f, y, 0.0f);
+					MV->scale(s,1.0f,s);
+				}
+
 				if (obj.shape->get_id() == "teapot") MV->translate((shear_q / 4.0f)*cos(t*2.0), 0.0f,0.0f);
 				if (obj.shape->get_id() == "teapot") MV->multMatrix(S);
 				
@@ -305,7 +331,7 @@ static void render()
 int main(int argc, char **argv)
 {
 	if(argc < 2) {
-		cout << "Usage: A3 RESOURCE_DIR" << endl;
+		cout << "Usage: A5 RESOURCE_DIR" << endl;
 		return 0;
 	}
 	RESOURCE_DIR = argv[1] + string("/");

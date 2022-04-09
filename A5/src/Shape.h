@@ -21,6 +21,7 @@ public:
 	Shape();
 	virtual ~Shape();
 	void loadMesh(const std::string &meshName);
+	void createMesh(std::string type, int parameter);
 	void fitToUnitBox();
 	void init();
 	void draw(const std::shared_ptr<Program> prog) const;
@@ -32,11 +33,12 @@ private:
 	std::vector<float> posBuf;
 	std::vector<float> norBuf;
 	std::vector<float> texBuf;
+	std::vector<unsigned int> indBuf;
 	unsigned posBufID;
 	unsigned norBufID;
 	unsigned texBufID;
+	unsigned indBufID;
 	std::string id;
-
 };
 
 #endif

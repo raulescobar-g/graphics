@@ -84,6 +84,15 @@ static void resize_callback(GLFWwindow *window, int width, int height)
 	glViewport(0, 0, width, height);
 }
 
+
+float f(float x) {
+	return cos(x) + 2.0f;
+}
+float df(float x) {
+	return -sin(x);
+}
+
+
 // This function is called once to initialize the scene and OpenGL
 static void init()
 {
@@ -138,30 +147,31 @@ static void init()
 	// normal buffer, texture buffer, and the index buffer.
 	//
 	int res = 40;
+	float len = 10.0f;
 	float rad = (2.0f * glm::pi<float>()) / (float) (res-2);
-
-	for (int i = 0; i < res/2 ; ++i) {
+	
+	for (int i = 0; i < res ; ++i) {
 		for (int j = 0; j < res ; ++j) {
 
 			float theta = i * rad;
-			float phi = j * rad;
+			float x = (j / (float) res) * len;
 
-			posBuf.push_back(sin(theta) * sin(phi));
-			posBuf.push_back(cos(theta));
-			posBuf.push_back(sin(theta) * cos(phi) );
+			posBuf.push_back(x);
+			posBuf.push_back(f(x) * cos(theta));
+			posBuf.push_back(f(x) * sin(theta));
 			
 
-			norBuf.push_back(sin(theta) * sin(phi));
-			norBuf.push_back(cos(theta));
-			norBuf.push_back(sin(theta) * cos(phi));
+			norBuf.push_back(x);
+			norBuf.push_back(f(x) * cos(theta));
+			norBuf.push_back(f(x) * sin(theta));
 
-			texBuf.push_back(2.0f*j / (res *0.05f));
-			texBuf.push_back(1.0f - (float) i /  (res * 0.05f));
+			texBuf.push_back(2.0f*j / (res *0.5f));
+			texBuf.push_back(1.0f - (float) i /  (res * 0.5f));
 		}
 	}
 
 	for (int x = 0; x < res-1; ++x){
-		for (int y = 0; y < (res/2)-1; ++y) {
+		for (int y = 0; y < (res)-1; ++y) {
 
 			int idx = y * res + x;
 			indBuf.push_back(idx + 1 + res);
@@ -227,21 +237,14 @@ static void render()
 	// Matrix stacks
 	auto P = make_shared<MatrixStack>();
 	auto MV = make_shared<MatrixStack>();
-	float Ay = 1.3f;
-	float As = 0.5f;
-	float p = 1.7f;
-	float t0 = 0.9f;
-	float y = Ay * (0.5f * sin((2.0f * glm::pi<float>() / p) * (t + t0)) + 0.5f);
-	float s = -As * (0.5f * cos((4.0f * glm::pi<float>() / p) * (t + t0)) + 0.5f) + 1.0f;
-
 	
-	MV->translate(0.0f, y, -3.0f);
-	MV->scale(s,1.0f,s);
 	// Apply camera transforms
 	P->pushMatrix();
 	camera->applyProjectionMatrix(P);
 	MV->pushMatrix();
 	camera->applyViewMatrix(MV);
+
+	MV->translate(0.0f,0.0f,-20.0f);
 	
 	glm::mat4 iMV = glm::transpose(glm::inverse(MV->topMatrix()));
 

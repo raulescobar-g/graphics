@@ -1,6 +1,6 @@
-#pragma  once
-#ifndef CAMERA_H
-#define CAMERA_H
+#pragma once
+#ifndef Camera_H
+#define Camera_H
 
 #include <memory>
 

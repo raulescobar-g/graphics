@@ -1,6 +1,6 @@
 #pragma  once
-#ifndef PROGRAM_H
-#define PROGRAM_H
+#ifndef Program_H
+#define Program_H
 
 #include <map>
 #include <string>
