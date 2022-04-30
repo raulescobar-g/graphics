@@ -79,43 +79,6 @@ void MatrixStack::rotate(float angle, float x, float y, float z)
 	rotate(angle, glm::vec3(x, y, z));
 }
 
-void MatrixStack::shearX(float y, float z) {
-	glm::mat4 &top = mstack->top();
-	glm::mat4 shearMe(1.0f);
-	shearMe[1][0] = y;
-	shearMe[2][0] = z;
-	top *= shearMe;
-}
-
-void MatrixStack::shearY(float x, float z) {
-	glm::mat4 &top = mstack->top();
-	glm::mat4 shearMe(1.0f);
-	shearMe[0][1] = x;
-	shearMe[2][1] = z;
-	top *= shearMe;
-}
-
-void MatrixStack::shearZ(float x, float y) {
-	glm::mat4 &top = mstack->top();
-	glm::mat4 shearMe(1.0f);
-	shearMe[0][2] = x;
-	shearMe[1][2] = y;
-	top *= shearMe;
-}
-
-void MatrixStack::shearX(glm::vec2 shear) {
-	shearX(shear.x, shear.y);
-}
-
-void MatrixStack::shearY(glm::vec2 shear) {
-	shearY(shear.x, shear.y);
-}
-
-void MatrixStack::shearZ(glm::vec2 shear) {
-	shearZ(shear.x, shear.y);
-}
-
-
 void MatrixStack::multMatrix(const glm::mat4 &matrix)
 {
 	glm::mat4 &top = mstack->top();

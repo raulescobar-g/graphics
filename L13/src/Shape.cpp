@@ -7,7 +7,6 @@
 
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
-#include <glm/gtc/type_ptr.hpp>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
@@ -17,8 +16,7 @@ using namespace std;
 Shape::Shape() :
 	posBufID(0),
 	norBufID(0),
-	texBufID(0),
-	indBufID(0)
+	texBufID(0)
 {
 }
 
@@ -72,88 +70,6 @@ void Shape::loadMesh(const string &meshName)
 	}
 }
 
-void Shape::createMesh(std::string type, int parameter) {
-	
-	int res = parameter;
-	float rad = (2.0f * glm::pi<float>()) / (float) (res-2);
-	float len = 10.0f;
-
-	if (type == "gen_sphere"){
-
-		for (int i = 0; i < res/2 ; ++i) {
-			for (int j = 0; j < res ; ++j) {
-
-				float theta = i * rad;
-				float phi = j * rad;
-
-				posBuf.push_back(sin(theta) * sin(phi));
-				posBuf.push_back(cos(theta));
-				posBuf.push_back(sin(theta) * cos(phi) );
-				
-
-				norBuf.push_back(sin(theta) * sin(phi));
-				norBuf.push_back(cos(theta));
-				norBuf.push_back(sin(theta) * cos(phi));
-
-				// texBuf.push_back(2.0f*j / (res *0.05f));
-				// texBuf.push_back(1.0f - (float) i /  (res * 0.05f));
-			}
-		}
-
-		for (int x = 0; x < res-1; ++x){
-			for (int y = 0; y < (res/2)-1; ++y) {
-
-				int idx = y * res + x;
-				indBuf.push_back(idx + 1 + res);
-				indBuf.push_back(idx + 1);
-				indBuf.push_back(idx);
-				
-				indBuf.push_back(idx + res);
-				indBuf.push_back(idx + 1 + res);
-				indBuf.push_back(idx);
-			}
-		}
-	} else if (type == "vase") {
-
-		for (int i = 0; i < res ; ++i) {
-			for (int j = 0; j < res ; ++j) {
-
-				float theta = i * rad;
-				float x = (j / (float) res) * len;
-
-				posBuf.push_back(x);
-				posBuf.push_back(theta);
-				posBuf.push_back(0.0f);
-
-				norBuf.push_back(0.0f);
-				norBuf.push_back(0.0f);
-				norBuf.push_back(0.0f);
-
-				// texBuf.push_back(2.0f*j / (res *0.5f));
-				// texBuf.push_back(1.0f - (float) i /  (res * 0.5f));
-			}
-		}
-
-		for (int x = 0; x < res-1; ++x){
-			for (int y = 0; y < (res)-1; ++y) {
-
-				int idx = y * res + x;
-				indBuf.push_back(idx);
-				indBuf.push_back(idx + 1);
-				indBuf.push_back(idx + 1 + res);
-				
-				
-				indBuf.push_back(idx);
-				indBuf.push_back(idx + 1 + res);
-				indBuf.push_back(idx + res);
-			}
-		}
-	} else {
-		assert(false);
-	}
-	
-}
-
 void Shape::fitToUnitBox()
 {
 	// Scale the vertex positions so that they fit within [-1, +1] in all three dimensions.
@@ -168,7 +84,6 @@ void Shape::fitToUnitBox()
 		vmax.y = max(vmax.y, v.y);
 		vmax.z = max(vmax.z, v.z);
 	}
-
 	glm::vec3 center = 0.5f*(vmin + vmax);
 	glm::vec3 diff = vmax - vmin;
 	float diffmax = diff.x;
@@ -181,7 +96,6 @@ void Shape::fitToUnitBox()
 		posBuf[i+2] = (posBuf[i+2] - center.z) * scale;
 	}
 }
-
 
 void Shape::init()
 {
@@ -203,15 +117,9 @@ void Shape::init()
 		glBindBuffer(GL_ARRAY_BUFFER, texBufID);
 		glBufferData(GL_ARRAY_BUFFER, texBuf.size()*sizeof(float), &texBuf[0], GL_STATIC_DRAW);
 	}
+	
 	// Unbind the arrays
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	
-	if (!indBuf.empty()) {
-		glGenBuffers(1, &indBufID);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indBufID);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, indBuf.size()*sizeof(unsigned int), &indBuf[0], GL_STATIC_DRAW);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-	}
 	
 	GLSL::checkError(GET_FILE_LINE);
 }
@@ -239,16 +147,11 @@ void Shape::draw(const shared_ptr<Program> prog) const
 		glBindBuffer(GL_ARRAY_BUFFER, texBufID);
 		glVertexAttribPointer(h_tex, 2, GL_FLOAT, GL_FALSE, 0, (const void *)0);
 	}
-
-	if (!indBuf.empty()) { glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indBufID); }
 	
 	// Draw
 	int count = posBuf.size()/3; // number of indices to be rendered
-
-	indBuf.empty() ? glDrawArrays(GL_TRIANGLES, 0, count) : glDrawElements(GL_TRIANGLES, (int)indBuf.size(), GL_UNSIGNED_INT, (void *)0);
+	glDrawArrays(GL_TRIANGLES, 0, count);
 	
-	if (!indBuf.empty()) { glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); }
-
 	// Disable and unbind
 	if(h_tex != -1) {
 		glDisableVertexAttribArray(h_tex);

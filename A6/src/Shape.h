@@ -6,8 +6,6 @@
 #include <vector>
 #include <memory>
 
-class Program;
-
 /**
  * A shape defined by a list of triangles
  * - posBuf should be of length 3*ntris
@@ -18,26 +16,29 @@ class Program;
 class Shape
 {
 public:
-	Shape();
-	virtual ~Shape();
+	Shape(std::string _id) :
+	posBufID(0),
+	norBufID(0),
+	texBufID(0),
+	//indBufID(0),
+	id(_id) {};
+	virtual ~Shape(){};
 	void loadMesh(const std::string &meshName);
-	void createMesh(std::string type, int parameter);
+	void createMesh(int parameter);
 	void fitToUnitBox();
-	void init();
-	void draw(const std::shared_ptr<Program> prog) const;
+	void draw() const;
 	
-	void set_id(std::string s) {id=s;};
 	std::string get_id() {return id;};
 	
 private:
 	std::vector<float> posBuf;
 	std::vector<float> norBuf;
 	std::vector<float> texBuf;
-	std::vector<unsigned int> indBuf;
+	//std::vector<unsigned int> indBuf;
 	unsigned posBufID;
 	unsigned norBufID;
 	unsigned texBufID;
-	unsigned indBufID;
+	//unsigned indBufID;
 	std::string id;
 };
 

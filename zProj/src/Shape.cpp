@@ -8,11 +8,14 @@
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/noise.hpp>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
 using namespace std;
+
+#define NOISE 0.5
 
 Shape::Shape() :
 	posBufID(0),
@@ -72,8 +75,9 @@ void Shape::loadMesh(const string &meshName)
 	}
 }
 
+
 void Shape::createMesh(std::string type, int parameter) {
-	
+	int size = parameter;
 	int res = parameter;
 	float rad = (2.0f * glm::pi<float>()) / (float) (res-2);
 	float len = 10.0f;
@@ -148,7 +152,41 @@ void Shape::createMesh(std::string type, int parameter) {
 				indBuf.push_back(idx + res);
 			}
 		}
-	} else {
+	} else if (type == "terrain") {
+		int resolution = 10000;
+		float step = (float) size / (float) resolution;
+		for (int x = 0; x < resolution; ++x){
+			for (int y = 0; y < resolution; ++y){
+
+				posBuf.push_back(step * x);
+				posBuf.push_back(step * y);
+				posBuf.push_back(glm::perlin(glm::vec2(x*step*(NOISE),y*step*(NOISE))));
+
+				norBuf.push_back(0.0f);
+				norBuf.push_back(0.0f);
+				norBuf.push_back(1.0f);
+
+				texBuf.push_back(x*step);
+				texBuf.push_back(y*step);
+
+			}
+		}
+
+		for (int x = 0; x < resolution-1; ++x){
+			for (int y = 0; y < (resolution)-1; ++y) {
+
+				int idx = y * res + x;
+				indBuf.push_back(idx);
+				indBuf.push_back(idx + 1);
+				indBuf.push_back(idx + 1 + res);
+				
+				
+				indBuf.push_back(idx);
+				indBuf.push_back(idx + 1 + res);
+				indBuf.push_back(idx + res);
+			}
+		}
+	}else {
 		assert(false);
 	}
 	
