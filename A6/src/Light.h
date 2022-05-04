@@ -13,7 +13,7 @@ class Light {
 
         glm::vec3 get_position() { return position; };
 
-        float get_intensity() { return intensity; };
+        float I() { return intensity; };
 
     private:
         glm::vec3 position;

@@ -3,7 +3,6 @@
 #define SCENEMANAGER_H_
 
 #include <memory>
-#include "Shape.h"
 #include "Camera.h"
 #include "Image.h"
 #include "Light.h"
@@ -13,243 +12,76 @@
 #include "Ray.h"
 #include "Ellipsoid.h"
 #include "Plane.h"
+#include "Mesh.h"
+#include "SafeQueue.h"
 
+#include <sys/wait.h>
+#include <thread>
+#include <mutex>
+#include <queue>
 
+#define EPS 1e-3
+#define FAR 100000000.0f
 class SceneManager {
     public:
         SceneManager(int _scene, std::shared_ptr<Image> _image, std::shared_ptr<Camera> _camera, std::string output) : scene(_scene), image(_image), camera(_camera), outputFile(output) {};
 
-        void generate_scene(){
-            switch (scene){
-                case 1:
-                    scene1();
-                    break;
-                case 2:
-                    scene1();
-                    break;
-                case 3:
-                    scene3();
-                    break;
-                case 4:
-                    scene4();
-                    break;
-                case 5:
-                    scene4();
-                    break;
-                default:
-                    std::cout<<"did not write this scene"<<std::endl;
-                    break;
+        void ray_job( SafeQueue<std::pair<std::shared_ptr<Ray>, glm::vec2> >& q ) {
+            std::pair<std::shared_ptr<Ray>, glm::vec2> ray;
+            while (q.pop(ray)) {
+                glm::vec3 color = glm::clamp(compute_ray_color(ray.first, EPS, FAR), 0.0f,1.0f);
+                image->setPixel(ray.second.x, ray.second.y, 255.0f*color.r,255.0f*color.g,255.0f*color.b);
             }
         }
 
-        void scene1(){
-            int i = 0;
-            int height = camera->get_height();
-            int width = camera->get_width();
+        void generate_scene(int consumers){
+            std::vector<std::thread> jobs;
 
-            for (auto ray : rays) {
-                
-                std::vector<Hit> hits;
-                ray->hits(objects, hits);
-                float r = 0.0f;
-                float g = 0.0f;
-                float b = 0.0f;
-                int y = i / height;
-                int x = i - y * width;
-                if (!hits.empty()){
-                    r = hits[0].object->get_material()->ka.r;
-                    g = hits[0].object->get_material()->ka.g;
-                    b = hits[0].object->get_material()->ka.b;
-
-                    for (auto light: lights){
-                        glm::vec3 hitPos = ray->get_origin() + ray->get_ray()*hits[0].ds;
-                        glm::vec3 l = glm::normalize(light->get_position() - hitPos);
-
-                        Ray shadowRay(l.x, l.y, l.z, hitPos, glm::distance(light->get_position() , hitPos));
-
-                        std::vector<Hit> lightHits;
-                        shadowRay.light_hits(objects, lightHits);
-                        if (lightHits.empty()) {
-                        
-                            glm::vec3 n = glm::normalize(hits[0].normal);
-                            if (glm::dot(n,l) > 0.0f){
-                                glm::vec3 h = glm::normalize(l - glm::normalize(ray->get_ray()));
-                                                            
-                                r += light->get_intensity() * ((hits[0].object->get_material()->kd.r * glm::dot(l, n)) + (hits[0].object->get_material()->ks.r * glm::pow(std::max(0.0f, glm::dot(h,n)), hits[0].object->get_material()->s) ));
-                                g += light->get_intensity() * ((hits[0].object->get_material()->kd.g * glm::dot(l, n)) + (hits[0].object->get_material()->ks.g * glm::pow(std::max(0.0f, glm::dot(h,n)), hits[0].object->get_material()->s) ));
-                                b += light->get_intensity() * ((hits[0].object->get_material()->kd.b * glm::dot(l, n)) + (hits[0].object->get_material()->ks.b * glm::pow(std::max(0.0f, glm::dot(h,n)), hits[0].object->get_material()->s) ));
-                            } 
-                        }
-                    }
-                    
-                    
-                }
-                r = glm::clamp(r, 0.0f,1.0f);
-                g = glm::clamp(g, 0.0f,1.0f);
-                b = glm::clamp(b, 0.0f,1.0f);
-                image->setPixel(x, y, 255.0f*r,255.0f*g,255.0f*b);
-                
-                ++i;
+            for (int i =0; i < consumers; ++i) {
+                std::thread t = std::thread(&SceneManager::ray_job, this, ref(rays) );
+                jobs.push_back(move(t));
             }
-            image->writeToFile(outputFile);
-
-        }
-        
-        void scene3(){
-
-            int i = 0;
-            int height = camera->get_height();
-            int width = camera->get_width();
-
-            for (auto ray : rays) {
-                
-                std::vector<Hit> hits;
-                ray->hits(objects, hits);
-                float r = 0.0f;
-                float g = 0.0f;
-                float b = 0.0f;
-                int y = i / height;
-                int x = i - y * width;
-                if (!hits.empty()){
-                    r = hits[0].object->get_material()->ka.r;
-                    g = hits[0].object->get_material()->ka.g;
-                    b = hits[0].object->get_material()->ka.b;
-
-                    for (auto light: lights){
-                        glm::vec3 hitPos = ray->get_origin() + ray->get_ray()*hits[0].ds;
-                        glm::vec3 l = glm::normalize(light->get_position() - hitPos);
-
-                        Ray shadowRay(l.x, l.y, l.z, hitPos, glm::distance(light->get_position() , hitPos));
-
-                        std::vector<Hit> lightHits;
-                        shadowRay.light_hits(objects, lightHits);
-                        if (lightHits.empty()) {
-                        
-                            glm::vec3 n = glm::normalize(hits[0].normal);
-                            if (glm::dot(n,l) >= 0.0f){
-                                glm::vec3 h = glm::normalize(l - glm::normalize(ray->get_ray()));
-                                                            
-                                r += light->get_intensity() * ((hits[0].object->get_material()->kd.r * glm::dot(l, n)) + (hits[0].object->get_material()->ks.r * glm::pow(std::max(0.0f, glm::dot(h,n)), hits[0].object->get_material()->s) ));
-                                g += light->get_intensity() * ((hits[0].object->get_material()->kd.g * glm::dot(l, n)) + (hits[0].object->get_material()->ks.g * glm::pow(std::max(0.0f, glm::dot(h,n)), hits[0].object->get_material()->s) ));
-                                b += light->get_intensity() * ((hits[0].object->get_material()->kd.b * glm::dot(l, n)) + (hits[0].object->get_material()->ks.b * glm::pow(std::max(0.0f, glm::dot(h,n)), hits[0].object->get_material()->s) ));
-                            } 
-                        }
-                    }
-                    
-                    
-                }
-                r = glm::clamp(r, 0.0f,1.0f);
-                g = glm::clamp(g, 0.0f,1.0f);
-                b = glm::clamp(b, 0.0f,1.0f);
-                image->setPixel(x, y, 255.0f*r,255.0f*g,255.0f*b);
-                
-                ++i;
+            for (int i = 0; i < consumers; ++i){
+                jobs.at(i).join();
             }
+
             image->writeToFile(outputFile);
         }
         
-        void scene4(){
-
-            int i = 0;
-            int height = camera->get_height();
-            int width = camera->get_width();
-
-            // for (auto ray : camera->get_rays()) {
-                
-            //     std::vector<Hit> hits;
-            //     ray->hits(objects, hits);
-            //     float r = 0.0f;
-            //     float g = 0.0f;
-            //     float b = 0.0f;
-            //     int y = i / height;
-            //     int x = i - y * width;
-            //     if (!hits.empty()){
-            //         if (hits[0].object->get_type() == "reflective"){
-            //             std::stack< std::shared_ptr<Hit> > recursive;
-            //             recursive.push(std::make_shared<Hit>(hits[0].normal, hits[0].ds, hits[0].object));
-            //             std::shared_ptr<Ray> curr = ray;
-
-            //             while (recursive.size() < 100 && recursive.top()->object->get_type() == "reflective") {
-            //                 glm::vec3 ref = glm::reflect(curr->get_ray(), recursive.top()->normal);
-            //                 std::shared_ptr<Ray> reflection = std::make_shared<Ray>(ref.x, ref.y, ref.z , recursive.top()->ds * curr->get_ray() + curr->get_origin());
-            //                 std::vector<Hit> res;
-            //                 reflection->hits(objects, res);
-            //                 std::shared_ptr<Hit> new_hit = std::make_shared<Hit>(res[0].normal, res[0].ds, res[0].object);
-            //                 curr = reflection;
-            //                 recursive.push(new_hit);
-            //             }
-            //             if (recursive.top()->object->get_type() != "reflective") {
-            //                 image->setPixel(x,y,0.0f,0.0f,0.0f);
-            //                 continue;
-            //             } else {
-            //                 image->setPixel(x,y,0.0f,0.0f,0.0f);
-            //                 continue;
-            //             }
-
-            //         }
-            //         r = hits[0].object->get_material()->ka.r;
-            //         g = hits[0].object->get_material()->ka.g;
-            //         b = hits[0].object->get_material()->ka.b;
-
-            //         for (auto light: lights){
-            //             glm::vec3 hitPos = ray->get_origin() + ray->get_ray()*hits[0].ds;
-            //             glm::vec3 l = glm::normalize(light->get_position() - hitPos);
-
-            //             Ray shadowRay(l.x, l.y, l.z, hitPos, glm::distance(light->get_position() , hitPos));
-
-            //             std::vector<Hit> lightHits;
-            //             shadowRay.light_hits(objects, lightHits);
-            //             if (lightHits.empty()) {
-                        
-            //                 glm::vec3 n = glm::normalize(hits[0].normal);
-            //                 if (glm::dot(n,l) >= 0.0f){
-            //                     glm::vec3 h = glm::normalize(l - glm::normalize(ray->get_ray()));
-                                                            
-            //                     r += light->get_intensity() * ((hits[0].object->get_material()->kd.r * glm::dot(l, n)) + (hits[0].object->get_material()->ks.r * glm::pow(std::max(0.0f, glm::dot(h,n)), hits[0].object->get_material()->s) ));
-            //                     g += light->get_intensity() * ((hits[0].object->get_material()->kd.g * glm::dot(l, n)) + (hits[0].object->get_material()->ks.g * glm::pow(std::max(0.0f, glm::dot(h,n)), hits[0].object->get_material()->s) ));
-            //                     b += light->get_intensity() * ((hits[0].object->get_material()->kd.b * glm::dot(l, n)) + (hits[0].object->get_material()->ks.b * glm::pow(std::max(0.0f, glm::dot(h,n)), hits[0].object->get_material()->s) ));
-            //                 } 
-            //             }
-            //         }
-                    
-                    
-            //     }
-            //     r = glm::clamp(r, 0.0f,1.0f);
-            //     g = glm::clamp(g, 0.0f,1.0f);
-            //     b = glm::clamp(b, 0.0f,1.0f);
-            //     image->setPixel(x, y, 255.0f*r,255.0f*g,255.0f*b);
-                
-            //     ++i;
-            // }
-            image->writeToFile(outputFile);
-        }
-
 
         void generate_rays(){
             int height = camera->get_height();
             int width = camera->get_width();
-            int fov = camera->get_fov();
+            float fov = camera->get_fov();
             glm::vec3 pos = camera->get_pos();
 
-            float k = 2.0f*tan(fov/2.0f) / (float)height;
+            float pitch = camera->get_pitch();
+            float yaw = camera->get_yaw();
 
+            float k = 2.0f*tan(fov/2.0f) / (float)height;
+            glm::vec4 p;
+            glm::mat4 M = glm::lookAt(pos, pos + glm::normalize(glm::vec3(sin(yaw)*cos(pitch), sin(pitch), cos(yaw)*cos(pitch))), glm::vec3(0.0f,1.0f,0.0f) );
+            
             for (int _y = 0; _y < height; ++_y){
                 float shift_y = k* ((float)_y - ((float)height/2.0f) + 0.5f);
 
                 for (int _x = 0; _x < width; ++_x){
                     float shift_x = k*((float)_x - ((float)width/2.0f) + 0.5f);
-                    rays.push_back(std::make_shared<Ray>(shift_x, shift_y, -1.0f, pos));
+                    p = glm::vec4(shift_x, shift_y, -1.0f, 0.0f);
+                    rays.push( std::pair< std::shared_ptr<Ray>, glm::vec2 >(std::make_shared<Ray>(glm::vec3(M*p), pos), glm::vec2(_x, _y)));
                 }
             }
         };
 
         void generate_environment() {
+            //srand (time(NULL));
             switch (scene) {
                 case 1:
                     objects.push_back(
                             std::make_shared<Sphere>(
                                                         glm::vec3(-0.5f, -1.0f, 1.0f), 
                                                         glm::vec3(1.0f,1.0f,1.0f), 
+                                                        0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                         std::make_shared<Material>(
                                                                                     glm::vec3(1.0f,0.0f,0.0f), 
                                                                                     glm::vec3(1.0f,1.0f,0.5f), 
@@ -262,6 +94,7 @@ class SceneManager {
                                     std::make_shared<Sphere>(
                                                                 glm::vec3(0.5f, -1.0f, -1.0f), 
                                                                 glm::vec3(1.0f,1.0f,1.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                                 std::make_shared<Material>(
                                                                                             glm::vec3(0.0f,1.0f,0.0f), 
                                                                                             glm::vec3(1.0f,1.0f,0.5f), 
@@ -274,6 +107,7 @@ class SceneManager {
                                     std::make_shared<Sphere>(
                                                                 glm::vec3(0.0f, 1.0f, 0.0f), 
                                                                 glm::vec3(1.0f,1.0f,1.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                                 std::make_shared<Material>(
                                                                                             glm::vec3(0.0f,0.0f,1.0f), 
                                                                                             glm::vec3(1.0f,1.0f,0.5f), 
@@ -282,15 +116,14 @@ class SceneManager {
                                                             )
                                     );
 
-                    auto light = std::make_shared<Light>(glm::vec3(-2.0f, 1.0f, 1.0f),1.0f);
-                    std::vector< std::shared_ptr<Light> > lights;
-                    lights.push_back(light);
+                    lights.push_back(std::make_shared<Light>(glm::vec3(-2.0f, 1.0f, 1.0f),1.0f));
                     break;
                 case 2:
                     objects.push_back(
                             std::make_shared<Sphere>(
                                                         glm::vec3(-0.5f, -1.0f, 1.0f), 
                                                         glm::vec3(1.0f,1.0f,1.0f), 
+                                                        0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                         std::make_shared<Material>(
                                                                                     glm::vec3(1.0f,0.0f,0.0f), 
                                                                                     glm::vec3(1.0f,1.0f,0.5f), 
@@ -303,6 +136,7 @@ class SceneManager {
                                     std::make_shared<Sphere>(
                                                                 glm::vec3(0.5f, -1.0f, -1.0f), 
                                                                 glm::vec3(1.0f,1.0f,1.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                                 std::make_shared<Material>(
                                                                                             glm::vec3(0.0f,1.0f,0.0f), 
                                                                                             glm::vec3(1.0f,1.0f,0.5f), 
@@ -315,6 +149,7 @@ class SceneManager {
                                     std::make_shared<Sphere>(
                                                                 glm::vec3(0.0f, 1.0f, 0.0f), 
                                                                 glm::vec3(1.0f,1.0f,1.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                                 std::make_shared<Material>(
                                                                                             glm::vec3(0.0f,0.0f,1.0f), 
                                                                                             glm::vec3(1.0f,1.0f,0.5f), 
@@ -323,13 +158,14 @@ class SceneManager {
                                                             )
                                     );
 
-                    lights.push_back(std::make_shared<Light>(glm::vec3(-2.0f, 1.0f, 1.0f),1.0f););
+                    lights.push_back(std::make_shared<Light>(glm::vec3(-2.0f, 1.0f, 1.0f),1.0f));
                     break;
-                case 3:
+                 case 3:
                     objects.push_back(
                             std::make_shared<Ellipsoid>(
                                                         glm::vec3(0.5f, 0.0f, 0.5f), 
                                                         glm::vec3(0.5f, 0.6f, 0.2f), 
+                                                        0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                         std::make_shared<Material>(
                                                                                     glm::vec3(1.0f,0.0f,0.0f), 
                                                                                     glm::vec3(1.0f,1.0f,0.5f), 
@@ -342,6 +178,7 @@ class SceneManager {
                                     std::make_shared<Sphere>(
                                                                 glm::vec3(-0.5f, 0.0f, -0.5f), 
                                                                 glm::vec3(1.0f,1.0f,1.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                                 std::make_shared<Material>(
                                                                                             glm::vec3(0.0f,1.0f,0.0f), 
                                                                                             glm::vec3(1.0f,1.0f,0.5f), 
@@ -354,6 +191,7 @@ class SceneManager {
                                     std::make_shared<Plane>(
                                                                 glm::vec3(0.0f, -1.0f, 0.0f), 
                                                                 glm::vec3(0.0f,1.0f,0.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                                 std::make_shared<Material>(
                                                                                             glm::vec3(1.0f,1.0f,1.0f), 
                                                                                             glm::vec3(0.0f,0.0f,0.0f), 
@@ -370,6 +208,7 @@ class SceneManager {
                             std::make_shared<Sphere>(
                                                         glm::vec3(0.5f, -0.7f, 0.5f), 
                                                         glm::vec3(0.3f,0.3f,0.3f), 
+                                                        0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                         std::make_shared<Material>(
                                                                                     glm::vec3(1.0f,0.0f,0.0f), 
                                                                                     glm::vec3(1.0f,1.0f,0.5f), 
@@ -381,6 +220,7 @@ class SceneManager {
                                     std::make_shared<Sphere>(
                                                                 glm::vec3(1.0f, -0.7f, 0.0f), 
                                                                 glm::vec3(0.3f,0.3f,0.3f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                                 std::make_shared<Material>(
                                                                                             glm::vec3(0.0f,0.0f,1.0f), 
                                                                                             glm::vec3(1.0f,1.0f,0.5f), 
@@ -392,30 +232,31 @@ class SceneManager {
                                     std::make_shared<Sphere>(
                                                                 glm::vec3(-0.5f, 0.0f, -0.5f), 
                                                                 glm::vec3(1.0f,1.0f,1.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                                 std::make_shared<Material>(
                                                                                             glm::vec3(0.0f,0.0f,0.0f), 
                                                                                             glm::vec3(0.0f,0.0f,0.0f), 
-                                                                                            glm::vec3(0.0f,0.0f,0.0f), 0.0f
-                                                                                        ), 
-                                                                "reflective"
+                                                                                            glm::vec3(0.0f,0.0f,0.0f), 0.0f, "reflective"
+                                                                                        )
                                                             )
                                     );
                     objects.push_back( // reflective 2
                                     std::make_shared<Sphere>(
                                                                 glm::vec3(1.5f, 0.0f, -1.5f), 
                                                                 glm::vec3(1.0f,1.0f,1.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                                 std::make_shared<Material>(
                                                                                             glm::vec3(0.0f,0.0f,0.0f), 
                                                                                             glm::vec3(0.0f,0.0f,0.0f), 
-                                                                                            glm::vec3(0.0f,0.0f,0.0f), 0.0f
-                                                                                        ),
-                                                                "reflective"
+                                                                                            glm::vec3(0.0f,0.0f,0.0f), 0.0f, "reflective"
+                                                                                        )
                                                             )
                                     );
                     objects.push_back( // floor
                             std::make_shared<Plane>(
                                                         glm::vec3(0.0f, -1.0f, 0.0f), 
                                                         glm::vec3(0.0f,1.0f,0.0f), 
+                                                        0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                         std::make_shared<Material>(
                                                                                     glm::vec3(1.0f,1.0f,1.0f), 
                                                                                     glm::vec3(0.0f,0.0f,0.0f), 
@@ -427,6 +268,7 @@ class SceneManager {
                                     std::make_shared<Plane>(
                                                                 glm::vec3(0.0f, 0.0f, -3.0f), 
                                                                 glm::vec3(0.0f,0.0f,1.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
                                                                 std::make_shared<Material>(
                                                                                             glm::vec3(1.0f,1.0f,1.0f), 
                                                                                             glm::vec3(0.0f,0.0f,0.0f), 
@@ -437,17 +279,340 @@ class SceneManager {
 
                     lights.push_back(std::make_shared<Light>(glm::vec3(-1.0f, 2.0f, 1.0f),0.5f));
                     lights.push_back(std::make_shared<Light>(glm::vec3(0.5f, -0.5f, 0.0f), 0.5f));
+                    break; 
+                case 5:
+                    objects.push_back( // 1
+                            std::make_shared<Sphere>(
+                                                        glm::vec3(0.5f, -0.7f, 0.5f), 
+                                                        glm::vec3(0.3f,0.3f,0.3f), 
+                                                        0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                        std::make_shared<Material>(
+                                                                                    glm::vec3(1.0f,0.0f,0.0f), 
+                                                                                    glm::vec3(1.0f,1.0f,0.5f), 
+                                                                                    glm::vec3(0.1f,0.1f,0.1f), 100.0f
+                                                                                )
+                                                    )
+                            );
+                    objects.push_back( // 2
+                                    std::make_shared<Sphere>(
+                                                                glm::vec3(1.0f, -0.7f, 0.0f), 
+                                                                glm::vec3(0.3f,0.3f,0.3f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                                std::make_shared<Material>(
+                                                                                            glm::vec3(0.0f,0.0f,1.0f), 
+                                                                                            glm::vec3(1.0f,1.0f,0.5f), 
+                                                                                            glm::vec3(0.1f,0.1f,0.1f), 100.0f
+                                                                                        )
+                                                            )
+                                    );
+                    objects.push_back( // reflective 1
+                                    std::make_shared<Sphere>(
+                                                                glm::vec3(-0.5f, 0.0f, -0.5f), 
+                                                                glm::vec3(1.0f,1.0f,1.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                                std::make_shared<Material>(
+                                                                                            glm::vec3(0.0f,0.0f,0.0f), 
+                                                                                            glm::vec3(0.0f,0.0f,0.0f), 
+                                                                                            glm::vec3(0.0f,0.0f,0.0f), 0.0f, "reflective"
+                                                                                        )
+                                                            )
+                                    );
+                    objects.push_back( // reflective 2
+                                    std::make_shared<Sphere>(
+                                                                glm::vec3(1.5f, 0.0f, -1.5f), 
+                                                                glm::vec3(1.0f,1.0f,1.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                                std::make_shared<Material>(
+                                                                                            glm::vec3(0.0f,0.0f,0.0f), 
+                                                                                            glm::vec3(0.0f,0.0f,0.0f), 
+                                                                                            glm::vec3(0.0f,0.0f,0.0f), 0.0f, "reflective"
+                                                                                        )
+                                                            )
+                                    );
+                    objects.push_back( // floor
+                                    std::make_shared<Plane>(
+                                                            glm::vec3(0.0f, -1.0f, 0.0f), 
+                                                            glm::vec3(0.0f,1.0f,0.0f), 
+                                                            0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                            std::make_shared<Material>(
+                                                                                        glm::vec3(1.0f,1.0f,1.0f), 
+                                                                                        glm::vec3(0.0f,0.0f,0.0f), 
+                                                                                        glm::vec3(0.1f,0.1f,0.1f), 0.0f
+                                                                                    )
+                                                        )
+                                );
+                    objects.push_back( // wall
+                                    std::make_shared<Plane>(
+                                                            glm::vec3(0.0f, 0.0f, -3.0f), 
+                                                            glm::vec3(0.0f,0.0f,1.0f), 
+                                                            0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                            std::make_shared<Material>(
+                                                                                        glm::vec3(1.0f,1.0f,1.0f), 
+                                                                                        glm::vec3(0.0f,0.0f,0.0f), 
+                                                                                        glm::vec3(0.1f,0.1f,0.1f), 0.0f
+                                                                                    )
+                                                        )
+                                );
+
+                    lights.push_back(std::make_shared<Light>(glm::vec3(-1.0f, 2.0f, 1.0f),0.5f));
+                    lights.push_back(std::make_shared<Light>(glm::vec3(0.5f, -0.5f, 0.0f), 0.5f));
                     break;
+                case 6:
+                    objects.push_back( // 1
+                            std::make_shared<Mesh>(
+                                                    glm::vec3(0.0f, 0.0f, 0.0f), 
+                                                    glm::vec3(1.0f,1.0f,1.0f), 
+                                                    0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                    std::make_shared<Material>(
+                                                                                glm::vec3(0.0f,0.0f,1.0f), 
+                                                                                glm::vec3(1.0f,1.0f,0.5f), 
+                                                                                glm::vec3(0.1f,0.1f,0.1f), 100.0f
+                                                                            )
+                                                )
+                        );
+                    lights.push_back(std::make_shared<Light>(glm::vec3(-1.0f, 1.0f, 1.0f),1.0f));
+                    break; 
+                case 7:
+                    objects.push_back( // 1
+                            std::make_shared<Mesh>(
+                                                    glm::vec3(0.3f, -1.5f, 0.0f), 
+                                                    glm::vec3(1.5f,1.5f,1.5f), 
+                                                    (20.0f*glm::pi<float>())/180.0f, glm::vec3(1.0f,0.0f,0.0f),
+                                                    std::make_shared<Material>(
+                                                                                glm::vec3(0.0f,0.0f,1.0f), 
+                                                                                glm::vec3(1.0f,1.0f,0.5f), 
+                                                                                glm::vec3(0.1f,0.1f,0.1f), 100.0f
+                                                                            )
+                                                )
+                        );
+                    lights.push_back(std::make_shared<Light>(glm::vec3(1.0f, 1.0f, 2.0f),1.0f));
+                    break;
+                case 8:
+                    camera->set_pos(glm::vec3(-3.0f, 0.0f, 0.0f));
+                    camera->rotate(0.0f, 90.0f); //pitch, yaw
+                    camera->set_fov(60.0f);
+                    objects.push_back(
+                            std::make_shared<Sphere>(
+                                                        glm::vec3(-0.5f, -1.0f, 1.0f), 
+                                                        glm::vec3(1.0f,1.0f,1.0f), 
+                                                        0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                        std::make_shared<Material>(
+                                                                                    glm::vec3(1.0f,0.0f,0.0f), 
+                                                                                    glm::vec3(1.0f,1.0f,0.5f), 
+                                                                                    glm::vec3(0.1f,0.1f,0.1f), 100.0f
+                                                                                )
+                                                    )
+                            );
+
+                    objects.push_back(
+                                    std::make_shared<Sphere>(
+                                                                glm::vec3(0.5f, -1.0f, -1.0f), 
+                                                                glm::vec3(1.0f,1.0f,1.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                                std::make_shared<Material>(
+                                                                                            glm::vec3(0.0f,1.0f,0.0f), 
+                                                                                            glm::vec3(1.0f,1.0f,0.5f), 
+                                                                                            glm::vec3(0.1f,0.1f,0.1f), 100.0f
+                                                                                        )
+                                                            )
+                                    );
+
+                    objects.push_back(
+                                    std::make_shared<Sphere>(
+                                                                glm::vec3(0.0f, 1.0f, 0.0f), 
+                                                                glm::vec3(1.0f,1.0f,1.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                                std::make_shared<Material>(
+                                                                                            glm::vec3(0.0f,0.0f,1.0f), 
+                                                                                            glm::vec3(1.0f,1.0f,0.5f), 
+                                                                                            glm::vec3(0.1f,0.1f,0.1f), 100.0f
+                                                                                        )
+                                                            )
+                                    );
+
+                    lights.push_back(std::make_shared<Light>(glm::vec3(-2.0f, 1.0f, 1.0f),1.0f));
+                    break;
+                case 9:
+                    objects.push_back(
+                            std::make_shared<Sphere>(
+                                                        glm::vec3(0.0f, 0.0f, 1.0f), 
+                                                        glm::vec3(1.0f,1.0f,1.0f), 
+                                                        0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                        std::make_shared<Material>(
+                                                                                    glm::vec3(1.0f,0.0f,0.0f), 
+                                                                                    glm::vec3(1.0f,1.0f,0.5f), 
+                                                                                    glm::vec3(0.1f,0.1f,0.1f), 100.0f, "transparent", 1.04f
+                                                                                )
+                                                    )
+                            );
+
+                    objects.push_back(
+                                    std::make_shared<Sphere>(
+                                                                glm::vec3(1.0f, -0.6f, -2.5f), 
+                                                                glm::vec3(1.0f,1.0f,1.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                                std::make_shared<Material>(
+                                                                                            glm::vec3(0.0f,1.0f,0.0f), 
+                                                                                            glm::vec3(1.0f,1.0f,0.5f), 
+                                                                                            glm::vec3(0.1f,0.1f,0.1f), 100.0f,"reflective"
+                                                                                        )
+                                                            )
+                                    );
+                    objects.push_back(
+                                    std::make_shared<Sphere>(
+                                                                glm::vec3(-0.5f, 4.0f, 10.0f), 
+                                                                glm::vec3(5.0f,5.0f,5.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                                std::make_shared<Material>(
+                                                                                            glm::vec3(0.0f,1.0f,0.0f), 
+                                                                                            glm::vec3(1.0f,1.0f,0.5f), 
+                                                                                            glm::vec3(0.1f,0.1f,0.1f), 100.0f,"reflective"
+                                                                                        )
+                                                            )
+                                    );
+
+                    objects.push_back(
+                                    std::make_shared<Sphere>(
+                                                                glm::vec3(-1.0f, 0.6f, -2.5f), 
+                                                                glm::vec3(1.0f,1.0f,1.0f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                                std::make_shared<Material>(
+                                                                                            glm::vec3(0.0f,0.0f,1.0f), 
+                                                                                            glm::vec3(1.0f,1.0f,0.5f), 
+                                                                                            glm::vec3(0.1f,0.1f,0.1f), 100.0f
+                                                                                        )
+                                                            )
+                                    );
+
+                    objects.push_back(
+                                    std::make_shared<Sphere>(
+                                                                glm::vec3(0.0f, -1.5f, -1.0f), 
+                                                                glm::vec3(0.5f,0.5f,0.5f), 
+                                                                0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                                std::make_shared<Material>(
+                                                                                            glm::vec3(1.0f,0.0f,0.0f), 
+                                                                                            glm::vec3(1.0f,1.0f,0.5f), 
+                                                                                            glm::vec3(0.1f,0.1f,0.1f), 100.0f
+                                                                                        )
+                                                            )
+                                    );
+
+                    objects.push_back( // floor
+                                    std::make_shared<Plane>(
+                                                            glm::vec3(0.0f, -2.0f, 0.0f), 
+                                                            glm::vec3(0.0f,1.0f,0.0f), 
+                                                            0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                            std::make_shared<Material>(
+                                                                                        glm::vec3(1.0f,1.0f,1.0f), 
+                                                                                        glm::vec3(0.0f,0.0f,0.0f), 
+                                                                                        glm::vec3(0.1f,0.1f,0.1f), 0.0f
+                                                                                    )
+                                                        )
+                                );
+
+                    objects.push_back( // wall
+                                    std::make_shared<Plane>(
+                                                            glm::vec3(0.0f, 0.0f, -10.0f), 
+                                                            glm::vec3(0.0f,0.0f,1.0f), 
+                                                            0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                            std::make_shared<Material>(
+                                                                                        glm::vec3(1.0f,1.0f,1.0f), 
+                                                                                        glm::vec3(0.0f,0.0f,0.0f), 
+                                                                                        glm::vec3(0.1f,0.1f,0.1f), 0.0f
+                                                                                    )
+                                                        )
+                                );
+
+                    objects.push_back( // wall
+                                    std::make_shared<Plane>(
+                                                            glm::vec3(0.0f, 0.0f, 15.0f), 
+                                                            glm::vec3(0.0f,0.0f,-1.0f), 
+                                                            0.0f, glm::vec3(0.0f,1.0f,0.0f),
+                                                            std::make_shared<Material>(
+                                                                                        glm::vec3(1.0f,1.0f,1.0f), 
+                                                                                        glm::vec3(0.0f,0.0f,0.0f), 
+                                                                                        glm::vec3(0.1f,0.1f,0.1f), 0.0f
+                                                                                    )
+                                                        )
+                                );
+
+                    lights.push_back(std::make_shared<Light>(glm::vec3(0.0f, 5.0f, 0.0f),1.0f));
+                    break;
+                    
             }
+        }
+
+        glm::vec3 compute_ray_color(std::shared_ptr<Ray> ray, float t0, float t1,int recursions=0){
+            Hit buff = Hit();
+            buff.set_distance(t1);
+            glm::vec3 color(0.0);
+            glm::vec3 l,h,dir,x,v;
+
+            if (hit(ray, t0, t1, buff)){ // remove ray saving if not needed for hit class
+                x = ray->o() + (ray->xyz() * buff.get_distance());
+
+                if (buff.get_mat().type == "reflective") {
+                    glm::vec3 reflected_dir = glm::reflect(ray->xyz(), buff.n()); //HERE
+                    std::shared_ptr<Ray> reflected_ray = std::make_shared<Ray>(reflected_dir , x);
+                    return recursions < 100 ? 0.9f * compute_ray_color(reflected_ray ,t0,t1, recursions+1) : color;
+                } else if (buff.get_mat().type == "transparent") {
+                    glm::vec3 refracted_dir = glm::refract(ray->xyz(), buff.n(), glm::dot(ray->xyz(), buff.n()) > 0.0f ? buff.get_mat().util/1.0f : 1.0f/buff.get_mat().util); //HERE
+                    std::shared_ptr<Ray> refracted_ray = std::make_shared<Ray>(refracted_dir , x);
+                    return recursions < 100 ? compute_ray_color(refracted_ray ,t0,t1, recursions+1) : color;
+                } 
+                color += buff.get_mat().ka;
+
+                
+                float light_dist;
+
+                for (auto light : lights) {
+                    
+                    dir = light->get_position() - x;
+
+                    Hit light_buff = Hit();
+                    std::shared_ptr<Ray> light_ray = std::make_shared<Ray>(dir,x);
+
+                    light_dist = glm::length(dir);
+                    
+                    if (!hit(light_ray, t0, light_dist, light_buff, true)){ //get light ray , epsilon, dist to light    
+                        l = glm::normalize(dir);
+                        v = glm::normalize(ray->o() - x);
+                        h = glm::normalize(l + v);
+                        color.r += light->I() * ( ( buff.get_mat().kd.r * std::max(0.0f, glm::dot(l, buff.n())) ) + (buff.get_mat().ks.r * glm::pow(std::max(0.0f, glm::dot(h,buff.n())), buff.get_mat().s) ));
+                        color.g += light->I() * ( ( buff.get_mat().kd.g * std::max(0.0f, glm::dot(l, buff.n())) ) + (buff.get_mat().ks.g * glm::pow(std::max(0.0f, glm::dot(h,buff.n())), buff.get_mat().s) ));
+                        color.b += light->I() * ( ( buff.get_mat().kd.b * std::max(0.0f, glm::dot(l, buff.n())) ) + (buff.get_mat().ks.b * glm::pow(std::max(0.0f, glm::dot(h,buff.n())), buff.get_mat().s) ));
+
+                    }
+                }
+            }
+            return color;
+            
+        }
+
+        bool hit(std::shared_ptr<Ray> ray, float start, float stop, Hit& buff, bool l=false){
+            Hit temp = Hit();
+            for (auto object : objects) { 
+                
+                temp = object->intersect(ray, start, stop); 
+
+                if (!temp.empty()){
+                    if (l) return true;
+                    if (buff.get_distance() > temp.get_distance()) {
+                        buff = temp;
+                    }
+                }  
+            }
+            
+            return !buff.empty(); 
         }
 
     private:
         int scene;
         std::shared_ptr<Image> image;
-        std::vector< std::shared_ptr<Shape> > objects;
+        std::vector< std::shared_ptr<Object> > objects;
         std::vector< std::shared_ptr<Light> > lights;
         std::shared_ptr<Camera> camera;
-        std::vector< std::shared_ptr<Ray> > rays;
+        SafeQueue< std::pair<std::shared_ptr<Ray>,glm::vec2> > rays;
         std::string outputFile;
 };
 
