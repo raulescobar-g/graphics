@@ -1,10 +1,8 @@
-# Graphics
+# Graphics in c++ with opengl
 
-- [ ] L-1
-- [ ] L00
-- [ ] L01
-- [ ] L02
-- [ ] A1
-- [ ] L03
-- [ ] L04
-- [ ] A2
+- Topics coded
+  - Rasterizer
+  - Matrix Stacks
+  - Deferred rendering
+  - FPV 
+  - Raytracer
